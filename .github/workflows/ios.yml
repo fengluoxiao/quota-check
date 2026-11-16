@@ -1,0 +1,100 @@
+name: iOS native build (macOS 27)
+on:
+  push:
+    branches: [main]
+    paths: ['mobile/**', '.github/workflows/ios.yml', 'vault.py', 'settings.py']
+  pull_request:
+    paths: ['mobile/**', '.github/workflows/ios.yml', 'vault.py', 'settings.py']
+  workflow_dispatch:
+    inputs:
+      signing:
+        description: iOS signing mode
+        type: choice
+        options: [unsigned, signed]
+        default: unsigned
+      simulator:
+        description: Build and launch the iOS 27 simulator app
+        type: boolean
+        default: true
+      export_method:
+        description: Signed IPA export method (requires Apple secrets)
+        type: choice
+        options: [release-testing, app-store-connect]
+        default: release-testing
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ios:
+    # GitHub's macOS 27 ARM64 image is officially named xcode-27.
+    runs-on: xcode-27
+    timeout-minutes: 90
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      IOS_BUNDLE_IDENTIFIER: ${{ vars.IOS_BUNDLE_IDENTIFIER || 'com.fengluoxiao.quotacheck' }}
+      IOS_BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify macOS 27 / Xcode 27
+        run: |
+          sw_vers
+          xcodebuild -version
+          test "$(uname -m)" = arm64
+          case "$(sw_vers -productVersion)" in 27.*) ;; *) exit 1 ;; esac
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - name: Install pinned package manager
+        run: npm install --global pnpm@11.25.0
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: pnpm install --frozen-lockfile
+      - name: Type check, test and export JavaScript
+        working-directory: mobile
+        run: |
+          pnpm typecheck
+          pnpm test
+          pnpm exec expo install --check
+          pnpm export:ios
+      - name: Verify native crypto and desktop file interoperability
+        run: bash mobile/scripts/check-native-crypto.sh
+      - name: Generate native iOS project
+        working-directory: mobile
+        run: pnpm prebuild:ios
+      - name: Install CocoaPods
+        working-directory: mobile/ios
+        run: pod install --repo-update
+      - name: Install Apple signing material
+        if: github.event_name == 'workflow_dispatch' && inputs.signing == 'signed'
+        env:
+          IOS_CERTIFICATE_P12_BASE64: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: bash mobile/scripts/install-signing.sh
+      - name: Build iOS packages and run simulator
+        env:
+          IOS_SIGNING_MODE: ${{ inputs.signing || 'unsigned' }}
+          IOS_BUILD_SIMULATOR: ${{ github.event_name != 'workflow_dispatch' || inputs.simulator }}
+          IOS_EXPORT_METHOD: ${{ inputs.export_method || 'release-testing' }}
+          IOS_TEAM_ID: ${{ inputs.signing == 'signed' && secrets.IOS_TEAM_ID || '' }}
+        run: bash mobile/scripts/build-ios.sh
+      - name: Upload iOS packages, checksums and native screenshot
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: quota-check-ios-${{ github.run_number }}
+          path: |
+            mobile/build-ios/*.ipa
+            mobile/build-ios/*.zip
+            mobile/build-ios/*.png
+            mobile/build-ios/*.txt
+            mobile/build-ios/native-health.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Remove temporary signing keychain
+        if: always() && env.IOS_SIGNING_KEYCHAIN != ''
+        run: security delete-keychain "$IOS_SIGNING_KEYCHAIN"

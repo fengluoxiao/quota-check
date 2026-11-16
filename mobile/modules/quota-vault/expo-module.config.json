@@ -1,0 +1,16 @@
+{
+  "platforms": [
+    "apple",
+    "android"
+  ],
+  "apple": {
+    "modules": [
+      "QuotaVaultModule"
+    ]
+  },
+  "android": {
+    "modules": [
+      "expo.modules.quotavault.QuotaVaultModule"
+    ]
+  }
+}

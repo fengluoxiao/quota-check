@@ -23,3 +23,11 @@ errors.jsonl
 # Distribute binaries as GitHub Release assets
 *.exe
 *.zip
+
+# Expo generated projects, local state and build artifacts
+/mobile/node_modules/
+/mobile/.expo/
+/mobile/ios/
+/mobile/android/
+/mobile/build-ios/
+/mobile/coverage/

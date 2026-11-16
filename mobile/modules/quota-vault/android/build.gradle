@@ -1,0 +1,13 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+group = 'expo.modules.quotavault'
+version = '1.0.0'
+android {
+  namespace 'expo.modules.quotavault'
+  defaultConfig {
+    externalNativeBuild { cmake { arguments '-DANDROID_STL=c++_shared' } }
+  }
+  externalNativeBuild { cmake { path 'CMakeLists.txt' } }
+}

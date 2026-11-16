@@ -4,6 +4,10 @@
 
 运行 SubscriptionQuota-v1.2.exe。左侧连接服务，右侧显示额度；右上角提供“保存到文件”和“导入文件”。
 
+## 移动端（iOS 优先）
+
+新增 [Expo / React Native 原生移动端](mobile/README.md)，支持 iPhone 单列、iPad 双栏、GLM / sub2api、全部账号卡片和跨电脑加密配置。iOS 构建使用官方 `xcode-27`（macOS 27 ARM64）GitHub Actions runner。默认输出未签名真机 IPA 和 iOS 模拟器包；签名版本可配置 Apple 证书后手动构建。
+
 ## 一次填写，以后直接查询
 
 在“查询服务”选择 GPT / Codex · sub2api，首次填写 sub2api 管理员站点、邮箱和密码，然后点击“查询全部 GPT 账号”。

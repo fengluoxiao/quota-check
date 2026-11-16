@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(quotaargon C)
+set(ARGON ${CMAKE_CURRENT_SOURCE_DIR}/../ios/vendor/argon2)
+add_library(quotaargon SHARED argon_jni.c ../ios/QuotaVaultC.c ${ARGON}/src/argon2.c ${ARGON}/src/core.c ${ARGON}/src/encoding.c ${ARGON}/src/ref.c ${ARGON}/src/thread.c ${ARGON}/src/blake2/blake2b.c)
+target_include_directories(quotaargon PRIVATE ../ios ${ARGON}/include ${ARGON}/src)
+target_compile_definitions(quotaargon PRIVATE ARGON2_NO_THREADS=1)
