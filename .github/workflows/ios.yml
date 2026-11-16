@@ -61,12 +61,6 @@ jobs:
           pnpm export:ios
       - name: Verify native crypto and desktop file interoperability
         run: bash mobile/scripts/check-native-crypto.sh
-      - name: Warm iOS 27 simulator
-        if: github.event_name != 'workflow_dispatch' || inputs.simulator
-        run: |
-          simulator="$(xcrun simctl list devices available -j | python3 -c 'import json,sys;d=json.load(sys.stdin);a=[v for k,rows in d["devices"].items() if "iOS-27" in k for v in rows if v.get("isAvailable") and v["name"].startswith("iPhone")];assert a;print(a[0]["udid"])')"
-          printf 'IOS_SMOKE_UDID=%s\n' "$simulator" >> "$GITHUB_ENV"
-          xcrun simctl boot "$simulator" || true
       - name: Generate native iOS project
         working-directory: mobile
         run: pnpm prebuild:ios
@@ -81,12 +75,28 @@ jobs:
           IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
         run: bash mobile/scripts/install-signing.sh
-      - name: Build iOS packages and run simulator
+      - name: Build iPhone device IPA
         env:
           IOS_SIGNING_MODE: ${{ inputs.signing || 'unsigned' }}
-          IOS_BUILD_SIMULATOR: ${{ github.event_name != 'workflow_dispatch' || inputs.simulator }}
+          IOS_BUILD_DEVICE: 'true'
+          IOS_BUILD_SIMULATOR: 'false'
           IOS_EXPORT_METHOD: ${{ inputs.export_method || 'release-testing' }}
           IOS_TEAM_ID: ${{ inputs.signing == 'signed' && secrets.IOS_TEAM_ID || '' }}
+        run: bash mobile/scripts/build-ios.sh
+      - name: Upload device IPA immediately
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: quota-check-ios-device-${{ github.run_number }}
+          path: |
+            mobile/build-ios/*.ipa
+            mobile/build-ios/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build and test iOS 27 simulator
+        if: github.event_name != 'workflow_dispatch' || inputs.simulator
+        env:
+          IOS_BUILD_DEVICE: 'false'
+          IOS_BUILD_SIMULATOR: 'true'
         run: bash mobile/scripts/build-ios.sh
       - name: Upload iOS packages, checksums and native screenshot
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

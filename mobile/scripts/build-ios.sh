@@ -8,29 +8,31 @@ if [[ -z "$workspace" ]]; then printf 'No generated Xcode workspace found.\n' >&
 scheme=QuotaCheck
 mode="${IOS_SIGNING_MODE:-unsigned}"
 derived="${RUNNER_TEMP:-$mobile_root/build-ios}/quota-derived"
-if [[ "$mode" == signed ]]; then
-  : "${IOS_TEAM_ID:?Signed builds need IOS_TEAM_ID}"
-  : "${IOS_PROFILE_UUID:?Signed builds need an installed provisioning profile}"
-  archive="${RUNNER_TEMP}/QuotaCheck.xcarchive"
-  xcodebuild -quiet -workspace "$workspace" -scheme "$scheme" -configuration Release -destination 'generic/platform=iOS' -archivePath "$archive" archive CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$IOS_TEAM_ID" PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_UUID" CODE_SIGN_IDENTITY='Apple Distribution'
-  python3 - <<'PY'
-import os,plistlib
-from pathlib import Path
-options={'method':os.environ.get('IOS_EXPORT_METHOD','release-testing'),'teamID':os.environ['IOS_TEAM_ID'],'signingStyle':'manual','provisioningProfiles':{os.environ['IOS_BUNDLE_IDENTIFIER']:os.environ['IOS_PROFILE_UUID']},'signingCertificate':'Apple Distribution','manageAppVersionAndBuildNumber':False}
-p=Path(os.environ['RUNNER_TEMP'])/'QuotaExportOptions.plist';p.write_bytes(plistlib.dumps(options))
-PY
-  xcodebuild -quiet -exportArchive -archivePath "$archive" -exportOptionsPlist "$RUNNER_TEMP/QuotaExportOptions.plist" -exportPath "$out/signed"
-  cp "$out/signed/QuotaCheck.ipa" "$out/QuotaCheck-ios-signed.ipa"
-else
-  xcodebuild -quiet -workspace "$workspace" -scheme "$scheme" -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$derived" build ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=''
-  app="$derived/Build/Products/Release-iphoneos/QuotaCheck.app"
-  package="$(mktemp -d)"
-  mkdir -p "$package/Payload"
-  ditto "$app" "$package/Payload/QuotaCheck.app"
-  (cd "$package" && zip -qry -1 "$out/QuotaCheck-ios-unsigned.ipa" Payload)
-  rm -rf "$package"
+if [[ "${IOS_BUILD_DEVICE:-true}" == true ]]; then
+  if [[ "$mode" == signed ]]; then
+    : "${IOS_TEAM_ID:?Signed builds need IOS_TEAM_ID}"
+    : "${IOS_PROFILE_UUID:?Signed builds need an installed provisioning profile}"
+    archive="${RUNNER_TEMP}/QuotaCheck.xcarchive"
+    xcodebuild -quiet -workspace "$workspace" -scheme "$scheme" -configuration Release -destination 'generic/platform=iOS' -archivePath "$archive" archive CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$IOS_TEAM_ID" PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_UUID" CODE_SIGN_IDENTITY='Apple Distribution'
+    python3 - <<'PY'
+  import os,plistlib
+  from pathlib import Path
+  options={'method':os.environ.get('IOS_EXPORT_METHOD','release-testing'),'teamID':os.environ['IOS_TEAM_ID'],'signingStyle':'manual','provisioningProfiles':{os.environ['IOS_BUNDLE_IDENTIFIER']:os.environ['IOS_PROFILE_UUID']},'signingCertificate':'Apple Distribution','manageAppVersionAndBuildNumber':False}
+  p=Path(os.environ['RUNNER_TEMP'])/'QuotaExportOptions.plist';p.write_bytes(plistlib.dumps(options))
+  PY
+    xcodebuild -quiet -exportArchive -archivePath "$archive" -exportOptionsPlist "$RUNNER_TEMP/QuotaExportOptions.plist" -exportPath "$out/signed"
+    cp "$out/signed/QuotaCheck.ipa" "$out/QuotaCheck-ios-signed.ipa"
+  else
+    xcodebuild -quiet -workspace "$workspace" -scheme "$scheme" -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$derived" build ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=''
+    app="$derived/Build/Products/Release-iphoneos/QuotaCheck.app"
+    package="$(mktemp -d)"
+    mkdir -p "$package/Payload"
+    ditto "$app" "$package/Payload/QuotaCheck.app"
+    (cd "$package" && zip -qry -1 "$out/QuotaCheck-ios-unsigned.ipa" Payload)
+    rm -rf "$package"
+  fi
+  printf 'Device IPA packaged.\n'
 fi
-printf 'Device IPA packaged.\n'
 if [[ "${IOS_BUILD_SIMULATOR:-true}" == true ]]; then
   NATIVE_SMOKE_CHECK=1 xcodebuild -quiet -workspace "$workspace" -scheme "$scheme" -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$derived-simulator" build NATIVE_SMOKE_CHECK=1 ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='-'
   app="$derived-simulator/Build/Products/Release-iphonesimulator/QuotaCheck.app"
