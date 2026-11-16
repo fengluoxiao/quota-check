@@ -1,6 +1,7 @@
 import type { ExpoConfig } from 'expo/config';
 const config: ExpoConfig = {
   name: 'QuotaCheck',
+  extra: { nativeSmokeCheck: process.env.NATIVE_SMOKE_CHECK === '1' },
   slug: 'quota-check',
   version: '1.3.0',
   scheme: 'quota-check',

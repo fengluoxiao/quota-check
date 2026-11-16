@@ -4,7 +4,6 @@ import {
   Alert,
   FlatList,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -20,6 +19,8 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import * as Linking from 'expo-linking';
+import Constants from 'expo-constants';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -228,6 +229,12 @@ function Screen() {
               ? '连接已加密保存，点击查询即可。'
               : '添加连接后即可开始查询。',
           );
+          if (
+            Constants.expoConfig?.extra?.nativeSmokeCheck === true &&
+            !Object.keys(v.profiles).length
+          ) {
+            setTimeout(() => void nativeCheck(), 1000);
+          }
         }
       })
       .catch(() => {
@@ -277,7 +284,7 @@ function Screen() {
     if (busyRef.current || Object.keys(dataRef.current.profiles).length || Native.readStorage())
       return;
     setBusy(true);
-    const report: Record<string, unknown> = { ok: false };
+    const report: Record<string, unknown> = { ok: false, stage: 'start' };
     const probe = 'quota-check.native-probe.' + Date.now();
     const options = {
       keychainService: 'com.fengluoxiao.quotacheck.vault',
@@ -285,26 +292,31 @@ function Screen() {
     };
     let wroteStore = false;
     try {
+      report.stage = 'generate-key';
       const secret = Native.generateKey();
+      report.stage = 'keychain-write';
       await SecureStore.setItemAsync(probe, secret, options);
       if ((await SecureStore.getItemAsync(probe, options)) !== secret) throw new Error('keychain');
       report.keychain = true;
+      report.stage = 'native-crypto';
       const plain = JSON.stringify(freshVault());
       const device = await Native.seal(plain, 2, secret);
       if ((await Native.open(device, secret)) !== plain) throw new Error('device');
       const portable = await Native.seal(plain, 1, secret);
       if ((await Native.open(portable, secret)) !== plain) throw new Error('portable');
       report.crypto = true;
+      report.stage = 'encrypted-storage';
       await Native.writeStorage(device);
       wroteStore = true;
       if (Native.readStorage() !== device) throw new Error('storage');
       report.storage = true;
       report.ok = true;
+      report.stage = 'complete';
     } catch {
       report.error = 'native check failed';
     } finally {
       if (wroteStore) await Native.deleteStorage();
-      await SecureStore.deleteItemAsync(probe, options);
+      await SecureStore.deleteItemAsync(probe, options).catch(() => undefined);
       const file = new File(Paths.document, 'native-health.json');
       file.create({ overwrite: true });
       file.write(JSON.stringify(report));

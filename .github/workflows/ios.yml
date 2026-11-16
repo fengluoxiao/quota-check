@@ -61,6 +61,12 @@ jobs:
           pnpm export:ios
       - name: Verify native crypto and desktop file interoperability
         run: bash mobile/scripts/check-native-crypto.sh
+      - name: Warm iOS 27 simulator
+        if: github.event_name != 'workflow_dispatch' || inputs.simulator
+        run: |
+          simulator="$(xcrun simctl list devices available -j | python3 -c 'import json,sys;d=json.load(sys.stdin);a=[v for k,rows in d["devices"].items() if "iOS-27" in k for v in rows if v.get("isAvailable") and v["name"].startswith("iPhone")];assert a;print(a[0]["udid"])')"
+          printf 'IOS_SMOKE_UDID=%s\n' "$simulator" >> "$GITHUB_ENV"
+          xcrun simctl boot "$simulator" || true
       - name: Generate native iOS project
         working-directory: mobile
         run: pnpm prebuild:ios
@@ -92,6 +98,7 @@ jobs:
             mobile/build-ios/*.zip
             mobile/build-ios/*.png
             mobile/build-ios/*.txt
+            mobile/build-ios/*.log
             mobile/build-ios/native-health.json
           if-no-files-found: warn
           retention-days: 14
