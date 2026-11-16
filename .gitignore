@@ -1,0 +1,25 @@
+# Local environments and generated builds
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+build/
+dist/
+work/
+outputs/
+.pytest_cache/
+# Credentials, encrypted connections and local diagnostics
+*.sqv
+*.sqv.*
+settings.json
+errors.jsonl
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+*.log
+# Distribute binaries as GitHub Release assets
+*.exe
+*.zip
