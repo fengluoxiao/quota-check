@@ -1,4 +1,8 @@
-export type Provider = 0 | 1;
+export type Provider = 0 | 1 | 2;
+export interface KimiProfile {
+  key: string;
+  sealed: boolean;
+}
 export interface GlmProfile {
   site: 'cn' | 'global';
   key: string;
@@ -29,7 +33,7 @@ export interface NewProfile {
 export interface VaultData {
   version: 1;
   source: Provider;
-  profiles: { glm?: GlmProfile; sub2api?: SubProfile; newapi?: NewProfile };
+  profiles: { glm?: GlmProfile; sub2api?: SubProfile; newapi?: NewProfile; kimi?: KimiProfile };
 }
 export interface Account {
   id: number;
@@ -89,10 +93,11 @@ export function validateVault(value: unknown): VaultData {
   if (!isRecord(value) || value.version !== 1 || !isRecord(value.profiles))
     throw new Error('连接文件格式不受支持。');
   const out = freshVault();
-  out.source = value.source === 1 ? 1 : 0;
+  out.source = value.source === 2 ? 2 : value.source === 1 ? 1 : 0;
   for (const [name, raw] of Object.entries(value.profiles)) {
     if (!isRecord(raw)) throw new Error('连接信息格式无效。');
     const allowed: Record<string, string[]> = {
+      kimi: ['key', 'sealed'],
       glm: ['site', 'key', 'sealed'],
       sub2api: [
         'url',
@@ -110,7 +115,12 @@ export function validateVault(value: unknown): VaultData {
       throw new Error('连接文件包含不支持的字段。');
     if (raw.sealed !== undefined && typeof raw.sealed !== 'boolean')
       throw new Error('连接保护标记无效。');
-    if (name === 'glm') {
+    if (name === 'kimi') {
+      out.profiles.kimi = {
+        key: validateKey(checkedString(raw.key, 'key')),
+        sealed: raw.sealed === true,
+      };
+    } else if (name === 'glm') {
       if (raw.site !== 'cn' && raw.site !== 'global') throw new Error('GLM 站点无效。');
       out.profiles.glm = {
         site: raw.site,
@@ -164,10 +174,11 @@ export function lockImported(value: unknown): VaultData {
 }
 export function exportOwned(value: VaultData): VaultData {
   const v = validateVault(value);
-  for (const k of ['glm', 'sub2api', 'newapi'] as const)
+  for (const k of ['glm', 'sub2api', 'newapi', 'kimi'] as const)
     if (v.profiles[k]?.sealed) delete v.profiles[k];
   if (!Object.keys(v.profiles).length) throw new Error('导入连接只能查询，不能再次导出。');
-  if (v.source === 1 && !v.profiles.sub2api) v.source = 0;
+  if ((v.source === 1 && !v.profiles.sub2api) || (v.source === 2 && !v.profiles.kimi))
+    v.source = v.profiles.kimi ? 2 : v.profiles.sub2api ? 1 : 0;
   return v;
 }
 export function formatTime(value: unknown): string {

@@ -2,9 +2,9 @@ name: iOS native build (macOS 27)
 on:
   push:
     branches: [main]
-    paths: ['mobile/**', '.github/workflows/ios.yml', 'vault.py', 'settings.py']
+    paths: ['mobile/**', '.github/workflows/ios.yml', 'vault.py', 'settings.py', 'kimi.py', 'tests/fixtures/**']
   pull_request:
-    paths: ['mobile/**', '.github/workflows/ios.yml', 'vault.py', 'settings.py']
+    paths: ['mobile/**', '.github/workflows/ios.yml', 'vault.py', 'settings.py', 'kimi.py', 'tests/fixtures/**']
   workflow_dispatch:
     inputs:
       signing:

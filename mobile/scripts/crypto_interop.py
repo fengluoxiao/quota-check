@@ -5,7 +5,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 import vault
 executable=sys.argv[1]
 password='native-portable-test-password-2026'
-profile={'version':1,'source':0,'profiles':{'glm':{'site':'cn','key':'test-interop-key','sealed':False}}}
+profile={'version':1,'source':2,'profiles':{'glm':{'site':'cn','key':'test-interop-key','sealed':False},'kimi':{'key':'test-kimi-interop-key','sealed':False}}}
 def native(body,success=True):
     p=subprocess.run([executable],input=json.dumps(body).encode(),capture_output=True,timeout=30)
     result=json.loads(p.stdout)

@@ -39,6 +39,7 @@ import {
   validateKey,
 } from './src/models';
 import { NeedsOTP, SubClient, queryAll, queryGLM } from './src/api';
+import { queryKIMI } from './src/kimi';
 import { clearVault, loadVault, nativeTransport, saveVault } from './src/storage';
 import { fileMode, fromBase64, toBase64 } from './src/encoding';
 
@@ -209,7 +210,12 @@ function Screen() {
   const [fileConfirm, setFileConfirm] = useState('');
   const [fileError, setFileError] = useState('');
   const clientRef = useRef<SubClient | null>(null);
-  const active = data.source === 1 ? data.profiles.sub2api : data.profiles.glm;
+  const active =
+    data.source === 2
+      ? data.profiles.kimi
+      : data.source === 1
+        ? data.profiles.sub2api
+        : data.profiles.glm;
   const sealed = active?.sealed === true;
   async function commit(next: VaultData, replace = false) {
     await saveVault(next, replace);
@@ -329,6 +335,16 @@ function Screen() {
   async function switchSource(source: Provider) {
     if (busyRef.current) return;
     const next = { ...dataRef.current, source };
+    setForm({
+      key: '',
+      site: 'cn',
+      url: '',
+      email: '',
+      password: '',
+      otp: '',
+      captcha: '',
+      cached: false,
+    });
     setCards([]);
     clientRef.current = null;
     dataRef.current = next;
@@ -349,7 +365,12 @@ function Screen() {
       return false;
     }
     const next: VaultData = JSON.parse(JSON.stringify(candidate ?? dataRef.current)) as VaultData;
-    const profile = next.source === 1 ? next.profiles.sub2api : next.profiles.glm;
+    const profile =
+      next.source === 2
+        ? next.profiles.kimi
+        : next.source === 1
+          ? next.profiles.sub2api
+          : next.profiles.glm;
     if (!profile) {
       setSettings(true);
       return false;
@@ -357,11 +378,18 @@ function Screen() {
     setBusy(true);
     setCards([]);
     setNotice(
-      next.source === 1 ? '正在连接 sub2api，读取全部 GPT 账号……' : '正在查询 GLM Coding Plan……',
+      next.source === 2
+        ? '正在查询 Kimi Coding Plan……'
+        : next.source === 1
+          ? '正在连接 sub2api，读取全部 GPT 账号……'
+          : '正在查询 GLM Coding Plan……',
     );
     try {
-      if (next.source === 0) {
-        const result = await queryGLM(next.profiles.glm!, nativeTransport);
+      if (next.source !== 1) {
+        const result =
+          next.source === 2
+            ? await queryKIMI(next.profiles.kimi!, nativeTransport)
+            : await queryGLM(next.profiles.glm!, nativeTransport);
         await commit(next);
         setCards(result);
         setNotice('查询成功 · Key 已在本机加密保存。');
@@ -420,6 +448,8 @@ function Screen() {
       if (next.source === 0) {
         if (!next.profiles.glm)
           next.profiles.glm = { site: form.site, key: validateKey(form.key), sealed: false };
+      } else if (next.source === 2) {
+        if (!next.profiles.kimi) next.profiles.kimi = { key: validateKey(form.key), sealed: false };
       } else if (!next.profiles.sub2api) {
         if (!form.email.trim() || !form.password)
           throw new Error('请填写 sub2api 管理员邮箱和密码。');
@@ -455,7 +485,8 @@ function Screen() {
                 setBlocked(false);
               } else {
                 const next: VaultData = JSON.parse(JSON.stringify(dataRef.current)) as VaultData;
-                if (next.source === 1) delete next.profiles.sub2api;
+                if (next.source === 2) delete next.profiles.kimi;
+                else if (next.source === 1) delete next.profiles.sub2api;
                 else {
                   delete next.profiles.glm;
                   delete next.profiles.newapi;
@@ -572,10 +603,15 @@ function Screen() {
   }
   const storedSub = data.profiles.sub2api;
   const storedGlm = data.profiles.glm;
+  const storedKeyProfile = data.source === 2 ? data.profiles.kimi : storedGlm;
   const formUI = (
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.formContent}>
       <Text style={[styles.sectionTitle, { color: colors.ink }]}>
-        {data.source === 1 ? '连接 sub2api' : 'GLM Coding Plan'}
+        {data.source === 2
+          ? 'Kimi Coding Plan'
+          : data.source === 1
+            ? '连接 sub2api'
+            : 'GLM Coding Plan'}
       </Text>
       {!!active && (
         <View style={[styles.saved, { backgroundColor: colors.soft }]}>
@@ -584,39 +620,46 @@ function Screen() {
           </Text>
         </View>
       )}
-      {data.source === 0 ? (
+      {data.source !== 1 ? (
         <>
-          <View style={styles.segment}>
-            {(['cn', 'global'] as const).map((site) => (
-              <Pressable
-                key={site}
-                disabled={busy || !!storedGlm}
-                onPress={() => setForm((v) => ({ ...v, site }))}
-                style={[
-                  styles.segmentItem,
-                  {
-                    backgroundColor:
-                      (storedGlm?.site ?? form.site) === site ? colors.soft : colors.card,
-                  },
-                ]}
-              >
-                <Text style={{ color: colors.accent }}>
-                  {site === 'cn' ? '智谱国内' : 'Z.ai 海外'}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          {data.source === 0 && (
+            <View style={styles.segment}>
+              {(['cn', 'global'] as const).map((site) => (
+                <Pressable
+                  key={site}
+                  disabled={busy || !!storedGlm}
+                  onPress={() => setForm((v) => ({ ...v, site }))}
+                  style={[
+                    styles.segmentItem,
+                    {
+                      backgroundColor:
+                        (storedGlm?.site ?? form.site) === site ? colors.soft : colors.card,
+                    },
+                  ]}
+                >
+                  <Text style={{ color: colors.accent }}>
+                    {site === 'cn' ? '智谱国内' : 'Z.ai 海外'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
           <Field
             colors={colors}
-            label="Coding Plan Key"
-            value={storedGlm ? '' : form.key}
-            editable={!storedGlm && !busy}
+            label={data.source === 2 ? 'Kimi Coding Plan Key' : 'Coding Plan Key'}
+            value={storedKeyProfile ? '' : form.key}
+            editable={!storedKeyProfile && !busy}
             secureTextEntry
             textContentType="none"
-            placeholder={storedGlm ? 'Key 已保存，不回填明文' : '首次输入，成功后加密保存'}
+            placeholder={storedKeyProfile ? 'Key 已保存，不回填明文' : '首次输入，成功后加密保存'}
             onChangeText={(key) => setForm((v) => ({ ...v, key }))}
           />
-          {!storedGlm && !!data.profiles.newapi && (
+          {data.source === 2 && (
+            <Text style={{ color: colors.muted }}>
+              使用 Kimi Code 套餐 Key 查询周额度和周期额度；开放平台余额 Key 不适用。
+            </Text>
+          )}
+          {data.source === 0 && !storedGlm && !!data.profiles.newapi && (
             <Text style={{ color: colors.muted }}>
               此文件仅含 New API 连接。请先在桌面端读取 GLM Key，再导出包含 Key 的跨电脑文件。
             </Text>
@@ -695,7 +738,15 @@ function Screen() {
         </>
       )}
       <Button
-        title={busy ? '正在查询……' : data.source === 1 ? '查询全部 GPT 账号' : '查询 GLM 额度'}
+        title={
+          busy
+            ? '正在查询……'
+            : data.source === 2
+              ? '查询 Kimi 额度'
+              : data.source === 1
+                ? '查询全部 GPT 账号'
+                : '查询 GLM 额度'
+        }
         onPress={() => {
           void saveForm();
         }}
@@ -738,7 +789,7 @@ function Screen() {
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.appTitle, { color: colors.ink }]}>额度查询</Text>
-          <Text style={{ color: colors.muted }}>GLM · GPT / Codex</Text>
+          <Text style={{ color: colors.muted }}>GLM · Kimi · GPT / Codex</Text>
         </View>
         <Pressable
           accessibilityRole="button"
@@ -768,7 +819,7 @@ function Screen() {
         )}
       </View>
       <View style={[styles.segment, { marginHorizontal: 20, backgroundColor: colors.card }]}>
-        {([0, 1] as const).map((source) => (
+        {([0, 1, 2] as const).map((source) => (
           <Pressable
             key={source}
             accessibilityRole="button"
@@ -786,7 +837,7 @@ function Screen() {
                 fontWeight: '600',
               }}
             >
-              {source === 0 ? 'GLM Coding Plan' : 'GPT · sub2api'}
+              {source === 2 ? 'Kimi' : source === 0 ? 'GLM' : 'GPT · sub2api'}
             </Text>
           </Pressable>
         ))}

@@ -9,6 +9,7 @@ import diagnostics
 import file_dialogs
 import newapi
 import quota
+import kimi
 import sub2api
 import vault
 
@@ -25,11 +26,12 @@ class VaultActions:
 
     def profile(self,name):return self.vault_data["profiles"].get(name,{})
     def private_view(self):
+        if self.Source.SelectedIndex==2:return bool(self.profile("kimi").get("sealed"))
         if self.Source.SelectedIndex==1:return bool(self.profile("sub2api").get("sealed"))
         return bool(self.profile("glm").get("sealed") or self.profile("newapi").get("sealed") or self.candidate_sealed)
 
     def persist(self):
-        self.vault_data["source"]=1 if self.Source.SelectedIndex==1 else 0
+        self.vault_data["source"]=self.Source.SelectedIndex if self.Source.SelectedIndex in (0,1,2) else 0
         if self.vault_load_error:raise vault.VaultError("本机保存的连接无法解密；请导入有效备份或点击更换连接后重新设置。")
         if not self.vault_test_mode:vault.save_local(self.vault_data)
 
@@ -59,6 +61,11 @@ class VaultActions:
             self.NewPassword.Password="";self.NewPassword.PlaceholderText="密码已加密保存";self.NewPassword.IsEnabled=False
         else:
             self.NewURL.IsReadOnly=False;self.NewUsername.IsReadOnly=False;self.NewPassword.IsEnabled=not self.busy
+        k=self.profile("kimi")
+        self.KimiKey.Password="" if k else self.KimiKey.Password
+        self.KimiKey.PlaceholderText="Key 已加密保存，直接查询即可" if k else "粘贴 Kimi Coding Plan Key"
+        self.KimiKey.IsEnabled=not self.busy and not bool(k)
+        self.KimiQuery.IsEnabled=not self.busy
         self.SubQuery.IsEnabled=not self.busy
         self.SaveFile.IsEnabled=not self.busy and not self.private_view()
 
@@ -66,11 +73,13 @@ class VaultActions:
         if getattr(self,"initializing",True):return
         from win32more.Microsoft.UI.Xaml import Visibility
         is_sub=self.Source.SelectedIndex==1
-        self.GlmPanel.Visibility=Visibility.Collapsed if is_sub else Visibility.Visible
-        self.NewAPIExpander.Visibility=Visibility.Collapsed if is_sub else Visibility.Visible
+        is_kimi=self.Source.SelectedIndex==2
+        self.GlmPanel.Visibility=Visibility.Collapsed if is_sub or is_kimi else Visibility.Visible
+        self.KimiPanel.Visibility=Visibility.Visible if is_kimi else Visibility.Collapsed
+        self.NewAPIExpander.Visibility=Visibility.Collapsed if is_sub or is_kimi else Visibility.Visible
         self.SubPanel.Visibility=Visibility.Visible if is_sub else Visibility.Collapsed
         self.clear_results()
-        self.ResultsTitle.Text="全部 GPT / Codex 账号" if is_sub else "GLM Coding Plan 额度"
+        self.ResultsTitle.Text="Kimi Coding Plan 额度" if is_kimi else ("全部 GPT / Codex 账号" if is_sub else "GLM Coding Plan 额度")
         self.Footnote.Text=("每张卡片对应一个 GPT 账号；数据时间与后台快照会单独标注。" if is_sub else "额度按接口实际返回展示。Key 在本机加密保存，输入框不回填明文。")
         self.restore_fields()
         self.message("准备就绪","点击查询全部 GPT 账号。" if is_sub and self.profile("sub2api") else ("首次填写 sub2api 登录信息后，点击查询全部账号。" if is_sub else "输入 Key 后查询；保存过的连接可直接查询。"))
@@ -78,7 +87,7 @@ class VaultActions:
     def set_busy(self,busy):
         from win32more.Microsoft.UI.Xaml import Visibility
         self.busy=busy
-        for name in ("Query","Site","Key","NewURL","NewUsername","NewPassword","LoginCode","ReadCode","LoginButton","Channels","ImportedKeys","Turnstile","Source","SubURL","SubEmail","SubPassword","SubCode","SubCaptcha","SubLogin","SubAccounts","SubMode","ImportFile","SaveFile","ResetConnection"):
+        for name in ("Query","Site","Key","KimiQuery","KimiKey","NewURL","NewUsername","NewPassword","LoginCode","ReadCode","LoginButton","Channels","ImportedKeys","Turnstile","Source","SubURL","SubEmail","SubPassword","SubCode","SubCaptcha","SubLogin","SubAccounts","SubMode","ImportFile","SaveFile","ResetConnection"):
             getattr(self,name).IsEnabled=not busy
         self.ImportButton.IsEnabled=not busy and bool(self.newapi_client and self.channel_rows)
         self.SubQuery.IsEnabled=not busy
@@ -89,11 +98,11 @@ class VaultActions:
 
     def ResetConnection_Click(self,sender,e):
         if self.busy:return
-        names=("sub2api",) if self.Source.SelectedIndex==1 else ("glm","newapi")
+        names=("kimi",) if self.Source.SelectedIndex==2 else (("sub2api",) if self.Source.SelectedIndex==1 else ("glm","newapi"))
         for name in names:self.vault_data["profiles"].pop(name,None)
         self.vault_load_error="";self.sub_client=None;self.newapi_client=None
         self.candidate_key="";self.candidate_sealed=False;self.sub_accounts=[]
-        for control in (self.Key,self.SubPassword,self.NewPassword,self.SubCode):control.Password=""
+        for control in (self.Key,self.KimiKey,self.SubPassword,self.NewPassword,self.SubCode):control.Password=""
         for control in (self.SubEmail,self.SubURL,self.NewUsername,self.NewURL):control.Text=""
         try:self.persist()
         except (vault.VaultError,OSError):self.message("设置未保存","清除连接设置失败，请检查本机数据目录权限。","Error");return
@@ -266,12 +275,33 @@ class VaultActions:
         except Exception as exc:self.clear_results();self.message("程序出错","内部异常（"+diagnostics.record(stage,exc)+"）。","Error")
         finally:self.set_busy(False)
 
+    async def KimiQuery_Click(self,sender,e):
+        if self.busy:return
+        saved=self.profile("kimi")
+        try:key=quota.validate_key(self.KimiKey.Password or saved.get("key",""))
+        except quota.QueryError as exc:self.message("请输入有效的 Kimi Key",str(exc),"Warning");return
+        self.clear_results();self.set_busy(True)
+        self.message("正在查询 Kimi","正在读取 Coding Plan 周额度和周期额度。")
+        try:
+            payload=await asyncio.to_thread(kimi.fetch_quota,key)
+            self.render_cards(kimi.quota_cards(payload),payload,key)
+            self.Updated.Text="更新于 "+datetime.now().strftime("%H:%M:%S")
+            self.vault_data["profiles"]["kimi"]={"key":key,"sealed":bool(saved.get("sealed"))}
+            self.persist();self.restore_fields()
+            self.message("查询成功","已读取 Kimi Coding Plan 额度；Key 已在本机加密保存。","Success")
+        except quota.QueryError as exc:self.message("Kimi 查询失败",str(exc),"Error")
+        except (vault.VaultError,OSError):self.message("连接保存失败","无法加密保存 Kimi 连接，请检查本机数据目录权限。","Error")
+        except Exception as exc:self.clear_results();self.message("程序出错","内部异常（"+diagnostics.record("kimi-query",exc)+"）。","Error")
+        finally:self.set_busy(False)
+
     def collect_owned(self):
         data=copy.deepcopy(self.vault_data)
         if not self.private_view():
             if self.Source.SelectedIndex==0:
                 key=self.Key.Password or self.candidate_key
                 if key:data["profiles"]["glm"]={"site":"global" if self.Site.SelectedIndex==1 else "cn","key":quota.validate_key(key),"sealed":False}
+            elif self.Source.SelectedIndex==2:
+                if self.KimiKey.Password:data["profiles"]["kimi"]={"key":quota.validate_key(self.KimiKey.Password),"sealed":False}
             elif self.SubEmail.Text.strip() and self.SubPassword.Password:
                 data["profiles"]["sub2api"]={"url":sub2api.normalize_url(self.SubURL.Text),"email":self.SubEmail.Text.strip(),"password":self.SubPassword.Password,"sealed":False,"cached":self.SubMode.SelectedIndex==1}
         data["source"]=self.Source.SelectedIndex

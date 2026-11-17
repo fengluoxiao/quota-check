@@ -7,6 +7,7 @@ from datetime import datetime
 from html import escape
 
 import quota
+import kimi
 import settings
 import newapi
 import diagnostics
@@ -26,7 +27,7 @@ XAML = r'''<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentatio
     </Grid.ColumnDefinitions>
     <StackPanel Spacing="5">
       <TextBlock Text="订阅额度" FontSize="30" FontWeight="SemiBold" />
-      <TextBlock Text="GLM Coding Plan 与 GPT / Codex 账号用量" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+      <TextBlock Text="GLM / Kimi Coding Plan 与 GPT / Codex 账号用量" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
     </StackPanel>
     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
       <Button x:Name="ImportFile" Content="导入文件" Click="ImportFile_Click" />
@@ -43,6 +44,7 @@ XAML = r'''<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentatio
         <ComboBox x:Name="Source" Header="查询服务" HorizontalAlignment="Stretch" SelectedIndex="0" SelectionChanged="Source_Changed">
           <ComboBoxItem Content="GLM Coding Plan" />
           <ComboBoxItem Content="GPT / Codex · sub2api" />
+          <ComboBoxItem Content="Kimi Coding Plan" />
         </ComboBox>
         <Button x:Name="ResetConnection" Content="更换连接（清除本机保存）" Click="ResetConnection_Click" HorizontalAlignment="Stretch" />
         <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" x:Name="GlmPanel">
@@ -62,6 +64,14 @@ XAML = r'''<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentatio
               <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                 </StackPanel>
             </Grid>
+          </StackPanel>
+        </Border>
+        <Border x:Name="KimiPanel" Visibility="Collapsed" Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+          <StackPanel Spacing="14">
+            <TextBlock Text="Kimi Coding Plan" FontSize="18" FontWeight="SemiBold" />
+            <PasswordBox x:Name="KimiKey" Header="Kimi Coding Plan API Key" PlaceholderText="粘贴 Kimi Coding Plan Key" PasswordRevealMode="Hidden" MaxLength="2048" />
+            <TextBlock Text="使用 Kimi Code 套餐 Key，查询周额度和周期额度；开放平台余额 Key 不适用。" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Button x:Name="KimiQuery" Content="查询 Kimi 额度" Style="{StaticResource AccentButtonStyle}" Click="KimiQuery_Click" HorizontalAlignment="Stretch" />
           </StackPanel>
         </Border>
         <Expander x:Name="NewAPIExpander" Header="从 New API 登录并导入（可选）" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
@@ -149,7 +159,7 @@ def launch(*, test_hook=None):
             self.sub_accounts = []
             self.initialize_vault(test_mode=test_hook is not None)
             self.win = Window()
-            self.win.Title = "订阅额度 · GLM / GPT · 1.2"
+            self.win.Title = "订阅额度 · GLM / Kimi / GPT · 1.4"
             self.win.SystemBackdrop = MicaBackdrop()
             self.win.Content = XamlLoader.Load(self, XAML)
             self.win.AppWindow.Resize(SizeInt32(Width=1200, Height=880))
@@ -336,12 +346,21 @@ def check_ui(input_path, output_path):
     report = {"ok": False}
     async def probe(view):
         previous_fetch, previous_save = quota.fetch_quota, settings.save
+        previous_kimi = kimi.fetch_quota
         try:
             live_transport = payload.get("_live_transport") is True
             if not live_transport:
                 quota.fetch_quota = lambda key, site: payload.get("quota", payload)
+                kimi.fetch_quota = lambda key: payload.get("quota", payload)
             settings.save = lambda *args, **kwargs: None
-            if payload.get("_provider") == "sub2api":
+            if payload.get("_provider") == "kimi":
+                view.Source.SelectedIndex = 2
+                view.KimiKey.Password = "diagnostic-only-kimi"
+                await view.KimiQuery_Click(None,None)
+                passed = view.Notice.Title == ("Kimi 查询失败" if live_transport else "查询成功")
+                report["kimi_controls"] = bool(view.KimiPanel.Visibility == 0 and view.GlmPanel.Visibility != 0 and view.SubPanel.Visibility != 0)
+                passed = passed and report["kimi_controls"]
+            elif payload.get("_provider") == "sub2api":
                 view.Source.SelectedIndex = 1
                 view.SubURL.Text = payload["url"]
                 view.SubEmail.Text = payload["email"]
@@ -395,6 +414,10 @@ def check_ui(input_path, output_path):
                     await view.SubQuery_Click(None, None)
                     clean_fields = not view.SubEmail.Text and not view.SubPassword.Password
                     read_only = view.SubURL.IsReadOnly and view.SubEmail.IsReadOnly and not view.SubPassword.IsEnabled
+                elif payload.get("_provider") == "kimi":
+                    await view.KimiQuery_Click(None,None)
+                    clean_fields = not view.KimiKey.Password
+                    read_only = not view.KimiKey.IsEnabled
                 else:
                     await view.Query_Click(None, None)
                     clean_fields = not view.Key.Password
@@ -419,6 +442,7 @@ def check_ui(input_path, output_path):
             report["exception"] = diagnostics.record("ui-probe", exc)
         finally:
             quota.fetch_quota, settings.save = previous_fetch, previous_save
+            kimi.fetch_quota = previous_kimi
             Path(output_path).write_text(json.dumps(report, ensure_ascii=False), encoding="utf-8")
             view.win.Close()
             view.Exit()

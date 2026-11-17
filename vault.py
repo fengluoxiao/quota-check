@@ -25,10 +25,10 @@ def fresh():return {"version":1,"source":0,"profiles":{}}
 def validate(data):
     if not isinstance(data,dict) or data.get("version")!=1 or not isinstance(data.get("profiles"),dict):
         raise VaultError("加密连接文件的数据格式无效。")
-    result=fresh();result["source"]=1 if data.get("source")==1 else 0
+    result=fresh();result["source"]=data.get("source") if type(data.get("source")) is int and data.get("source") in (0,1,2) else 0
     for name,record in data["profiles"].items():
-        if name not in ("glm","sub2api","newapi") or not isinstance(record,dict):raise VaultError("连接文件包含不支持的连接类型。")
-        allowed={"glm":{"site","key","sealed"},
+        if name not in ("glm","sub2api","newapi","kimi") or not isinstance(record,dict):raise VaultError("连接文件包含不支持的连接类型。")
+        allowed={"kimi":{"key","sealed"},"glm":{"site","key","sealed"},
                  "sub2api":{"url","email","password","access_token","refresh_token","user","sealed","cached"},
                  "newapi":{"url","username","password","sealed"}}[name]
         if set(record)-allowed:raise VaultError("连接文件包含不支持的字段。")
@@ -42,6 +42,10 @@ def validate(data):
             elif not isinstance(v,str) or len(v)>32768:raise VaultError("连接字段格式无效或长度超限。")
             item[k]=copy.deepcopy(v)
         item["sealed"]=bool(item.get("sealed"))
+        if name=="kimi":
+            import quota
+            try:item["key"]=quota.validate_key(item.get("key",""))
+            except quota.QueryError:raise VaultError("Kimi 连接信息不完整或 Key 无效。") from None
         if name=="glm" and (item.get("site") not in ("cn","global") or not item.get("key")):
             raise VaultError("GLM 连接信息不完整。")
         if name=="sub2api" and (not item.get("url") or not item.get("email") or not (item.get("password") or item.get("refresh_token"))):
@@ -102,6 +106,9 @@ def exportable(data):
     result=validate(data)
     result["profiles"]={k:v for k,v in result["profiles"].items() if not v.get("sealed")}
     if not result["profiles"]:raise VaultError("没有可导出的自有连接。导入的连接只能查询，不能再次导出。")
+    active={0:"glm",1:"sub2api",2:"kimi"}
+    if active[result["source"]] not in result["profiles"]:
+        result["source"]=next((source for source,name in active.items() if name in result["profiles"]),0)
     return result
 
 def imported(data):

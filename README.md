@@ -1,12 +1,12 @@
-# Quota Check · GLM / GPT 订阅额度查询
+# Quota Check · GLM / Kimi / GPT 订阅额度查询
 
 [下载 Windows x64 版本](https://github.com/fengluoxiao/quota-check/releases/latest) · [安全边界](SECURITY.md)
 
-运行 SubscriptionQuota-v1.2.exe。左侧连接服务，右侧显示额度；右上角提供“保存到文件”和“导入文件”。
+运行 SubscriptionQuota-v1.4.exe。左侧连接服务，右侧显示额度；右上角提供“保存到文件”和“导入文件”。
 
 ## 移动端（iOS 优先）
 
-新增 [Expo / React Native 原生移动端](mobile/README.md)，支持 iPhone 单列、iPad 双栏、GLM / sub2api、全部账号卡片和跨电脑加密配置。iOS 构建使用官方 `xcode-27`（macOS 27 ARM64）GitHub Actions runner。默认输出未签名真机 IPA 和 iOS 模拟器包；签名版本可配置 Apple 证书后手动构建。
+新增 [Expo / React Native 原生移动端](mobile/README.md)，支持 iPhone 单列、iPad 双栏、GLM / Kimi / sub2api、全部账号卡片和跨电脑加密配置。iOS 构建使用官方 `xcode-27`（macOS 27 ARM64）GitHub Actions runner。默认输出未签名真机 IPA 和 iOS 模拟器包；签名版本可配置 Apple 证书后手动构建。
 
 ## 一次填写，以后直接查询
 
@@ -16,7 +16,7 @@
 
 程序自动读取全部 OpenAI OAuth 账号。每个账号对应一张卡片，卡片内显示其 5 小时、7 天等实际额度窗口。个别账号失败时，该账号保留错误卡片，其他账号继续显示。
 
-保存后的账号、密码、GLM Key 不回填到输入框。输入框没有密码查看按钮。需要更换连接时，点击“更换连接（清除本机保存）”后重新填写。
+保存后的账号、密码、GLM / Kimi Key 不回填到输入框。输入框没有密码查看按钮。需要更换连接时，点击“更换连接（清除本机保存）”后重新填写。
 
 ## 加密连接文件 .sqv
 
@@ -93,3 +93,13 @@ python -m unittest discover -s tests -v
 当前版本已通过 68 项自动化测试和 8 项打包后检查。sub2api / New API 端到端交互通过本地协议测试服务验证；私有站点的版本和配置仍需实际连接确认。
 
 此仓库不包含任何真实账号、密码、API Key、本机连接文件或开发日志。Windows exe 发布在 Releases 中，不写入 Git 历史。
+
+## Kimi Coding Plan（Windows / iOS）
+
+从查询服务选择 Kimi，首次填写 Kimi Code 套餐 API Key，成功后本机加密保存；之后点击查询即可。周额度、周期额度及重置时间只按真实接口返回展示，不调用模型，不消耗对话配额。普通 Moonshot 开放平台余额 Key 不适用。
+
+使用官方 Kimi CLI 同源接口：GET https://api.kimi.com/coding/v1/usages，Authorization: Bearer <Coding Plan Key>。协议依据：[官方 CLI 用量查询](https://github.com/MoonshotAI/kimi-cli/blob/9ab1286b8fe4e6bcd116949a27ce5e0ac3389c82/src/kimi_cli/ui/shell/usage.py) 和 [官方平台地址](https://github.com/MoonshotAI/kimi-cli/blob/9ab1286b8fe4e6bcd116949a27ce5e0ac3389c82/src/kimi_cli/auth/platforms.py)，核实日期 2026-11-17。
+
+Kimi 连接可保存到加密 .sqv 文件，在更新后的 Windows / iOS 应用间导入。导入后隐藏 Key 并禁止再次导出；旧版应用不认识新增 Kimi 连接，需要一起更新。已有 GLM / sub2api 文件仍可使用。
+
+缺少 used / remaining 时不会补成零使用，缺少重置时间时不推算。开发测试的协议样例仅位于 tests/fixtures，不会作为产品数据或查询失败后的回退。

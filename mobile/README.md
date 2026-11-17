@@ -64,3 +64,7 @@ iOS 本地编译需要 Mac 和 Xcode 27。Windows 可以运行类型检查、协
 可在仓库 Variables 设置 IOS_BUNDLE_IDENTIFIER，默认 com.fengluoxiao.quotacheck。export_method 支持 release-testing（测试设备分发）和 app-store-connect（用于后续 App Store Connect 分发）。工作流不自动上传 App Store。
 
 签名材料仅在临时 keychain 和 runner 临时目录使用，不写入源码或构建附件。源代码、IPA 和模拟器包不是 Apple 账号登录凭据的替代品。
+
+## Kimi Coding Plan
+
+顶部选择 Kimi，在设置中输入 Kimi Code 套餐 Key。查询周额度及接口返回的全部周期额度；Key 使用现有 Keychain / 设备加密存储，支持跨平台 .sqv 导入导出。普通 Moonshot API 余额 Key 不适用。Windows 和移动端使用相同协议测试样例，缺失字段不会补成虚假的可用额度。
