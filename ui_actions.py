@@ -249,10 +249,15 @@ class VaultActions:
             for kind,label in (("reset","重置卡次数"),("credits","Codex 点数")):
                 for card in queries.get(kind,[]):
                     sections.append(f'<StackPanel Spacing="7"><TextBlock Text="{escape(label,quote=True)}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{escape(card["details"],quote=True).replace(chr(10),"&#10;")}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/></StackPanel>')
-            buttons=''.join(f'<Button Content="{text}" Tag="{account["id"]} {kind}" Click="SubCardQuery_Click"/>' for kind,text in (("reset","查询重置卡"),("credits","查询点数"),("refresh","刷新快照")))
             note='<TextBlock Text="按钮只读取或刷新快照；不会调用消耗重置卡的 reset-quota 接口。" FontSize="11" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />'
-            xaml=f'''<Border xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Padding="20" CornerRadius="12" Background="{{ThemeResource CardBackgroundFillColorDefaultBrush}}" BorderBrush="{{ThemeResource CardStrokeColorDefaultBrush}}" BorderThickness="1"><StackPanel Spacing="16"><TextBlock Text="{escape(label,quote=True)}" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{escape(meta,quote=True)}" FontSize="12" TextWrapping="Wrap" Foreground="{{ThemeResource TextFillColorSecondaryBrush}}"/>{''.join(sections)}<StackPanel Orientation="Horizontal" Spacing="8">{buttons}</StackPanel>{note}</StackPanel></Border>'''
-            self.Cards.Children.Append(XamlReader.Load(xaml).as_(UIElement))
+            card=XamlReader.Load(f'''<Border xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Padding="20" CornerRadius="12" Background="{{ThemeResource CardBackgroundFillColorDefaultBrush}}" BorderBrush="{{ThemeResource CardStrokeColorDefaultBrush}}" BorderThickness="1"><StackPanel Spacing="16"><TextBlock Text="{escape(label,quote=True)}" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{escape(meta,quote=True)}" FontSize="12" TextWrapping="Wrap" Foreground="{{ThemeResource TextFillColorSecondaryBrush}}"/>{''.join(sections)}<StackPanel x:Name="SubCardActions" Orientation="Horizontal" Spacing="8"><Button Content="查询重置卡"/><Button Content="查询点数"/><Button Content="刷新快照"/></StackPanel>{note}</StackPanel></Border>''')
+            from win32more.Microsoft.UI.Xaml.Controls import Border, Button, Panel
+            content=card.as_(Border).Child.as_(Panel)
+            actions=content.Children.GetAt(content.Children.Size-2)
+            actions_list=actions.as_(Panel).Children
+            for button,(kind,tag) in zip(actions_list, (("reset",f"{account['id']} reset"),("credits",f"{account['id']} credits"),("refresh",f"{account['id']} refresh"))):
+                routed_button=button.as_(Button);routed_button.Tag=tag;routed_button.Click += self.SubCardQuery_Click
+            self.Cards.Children.Append(card.as_(UIElement))
         self.publish_raw({"accounts":items})
 
     def render_sub(self,payload):self.render_bulk([{"account":payload.get("account",{}),"payload":payload}])
