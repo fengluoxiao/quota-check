@@ -27,6 +27,7 @@ import * as Sharing from 'expo-sharing';
 import * as SecureStore from 'expo-secure-store';
 import Native from './modules/quota-vault';
 import {
+  Account,
   AccountCard,
   GlmProfile,
   Provider,
@@ -36,8 +37,10 @@ import {
   freshVault,
   lockImported,
   normalizeURL,
+  subWindows,
   validateKey,
 } from './src/models';
+import type { SubCardAction } from './src/models';
 import { NeedsOTP, SubClient, queryAll, queryGLM } from './src/api';
 import { queryKIMI } from './src/kimi';
 import { SERVICES, ServiceProfile, serviceForSource, validateService } from './src/serviceCatalog';
@@ -106,13 +109,31 @@ function Button({
     </Pressable>
   );
 }
-function WindowCard({ card, colors }: { card: AccountCard; colors: Colors }) {
+function WindowCard({
+  card,
+  colors,
+  onSubAction,
+  subActionBusy,
+}: {
+  card: AccountCard;
+  colors: Colors;
+  onSubAction?: (card: AccountCard, action: SubCardAction) => void;
+  subActionBusy?: boolean;
+}) {
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
       <Text selectable={false} style={[styles.cardTitle, { color: colors.ink }]}>
         {card.title}
       </Text>
       <Text style={[styles.meta, { color: colors.muted }]}>{card.subtitle}</Text>
+      {(['reset', 'credits'] as const).map((kind) =>
+        (card.queries?.[kind] ?? []).map((query, index) => (
+          <View key={kind + index} style={styles.window}>
+            <Text style={[styles.windowTitle, { color: colors.muted }]}>{query.title}</Text>
+            <Text style={[styles.detail, { color: colors.ink }]}>{query.detail}</Text>
+          </View>
+        )),
+      )}
       {card.error ? (
         <Text style={{ color: colors.danger }}>{card.error}</Text>
       ) : card.windows.length ? (
@@ -157,6 +178,36 @@ function WindowCard({ card, colors }: { card: AccountCard; colors: Colors }) {
       ) : (
         <Text style={{ color: colors.muted }}>后台没有返回额度窗口，没有推算可用比例。</Text>
       )}
+      {onSubAction && (
+        <View style={styles.subActions}>
+          {(
+            [
+              ['reset', '查询重置卡'],
+              ['credits', '查询点数'],
+              ['refresh', '刷新快照'],
+            ] as const
+          ).map(([action, title]) => (
+            <Pressable
+              key={action}
+              accessibilityRole="button"
+              accessibilityLabel={card.title + ' ' + title}
+              disabled={subActionBusy === true}
+              onPress={() => onSubAction(card, action)}
+              style={({ pressed }) => [
+                styles.subAction,
+                { backgroundColor: colors.soft, opacity: subActionBusy ? 0.5 : pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '600' }}>{title}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+      {onSubAction && (
+        <Text style={[styles.detail, { color: colors.muted }]}>
+          按钮只读取或刷新快照；不会调用消耗重置卡的 reset-quota 接口。
+        </Text>
+      )}
     </View>
   );
 }
@@ -191,6 +242,7 @@ function Screen() {
   const [blocked, setBlocked] = useState(false);
   const [busy, setBusyState] = useState(false);
   const busyRef = useRef(false);
+  const [subCardBusy, setSubCardBusy] = useState<string | null>(null);
   function setBusy(value: boolean) {
     busyRef.current = value;
     setBusyState(value);
@@ -523,6 +575,59 @@ function Screen() {
       if (ok) setSettings(false);
     } catch (e) {
       Alert.alert('连接信息不完整', message(e));
+    }
+  }
+  async function runSubCardAction(card: AccountCard, action: SubCardAction) {
+    if (busyRef.current || subCardBusy) return;
+    const profile = dataRef.current.profiles.sub2api;
+    if (!profile) {
+      setSettings(true);
+      return;
+    }
+    const key = card.id + ':' + action;
+    setSubCardBusy(key);
+    setNotice(
+      action === 'refresh'
+        ? '正在刷新该账号额度并保存快照……'
+        : '正在读取该账号的' + (action === 'reset' ? '重置卡次数' : '点数余额') + '……',
+    );
+    try {
+      let client = clientRef.current;
+      if (!client || client.url !== profile.url || client.profile.email !== profile.email) {
+        client = new SubClient(profile, nativeTransport);
+        clientRef.current = client;
+      }
+      await client.login('', '', true);
+      const account: Account = { id: Number(card.id), name: card.title };
+      const next = { ...dataRef.current };
+      if (action === 'refresh') {
+        const usage = await client.refreshUsage(account);
+        setCards((current) =>
+          current.map((item) =>
+            item.id === card.id
+              ? { ...item, windows: subWindows(usage), queries: {}, error: undefined }
+              : item,
+          ),
+        );
+      } else {
+        const query =
+          action === 'reset'
+            ? await client.queryResetCredits(account)
+            : await client.queryCredits(account);
+        setCards((current) =>
+          current.map((item) =>
+            item.id === card.id
+              ? { ...item, queries: { ...item.queries, [action]: [query] } }
+              : item,
+          ),
+        );
+      }
+      await commit(next);
+      setNotice('账号卡片查询成功 · 登录信息已加密保存。');
+    } catch (e) {
+      setNotice(message(e));
+    } finally {
+      setSubCardBusy(null);
     }
   }
   function reset() {
@@ -1012,7 +1117,14 @@ function Screen() {
           <FlatList
             data={cards}
             keyExtractor={(c) => c.id}
-            renderItem={({ item }) => <WindowCard card={item} colors={colors} />}
+            renderItem={({ item }) => (
+              <WindowCard
+                card={item}
+                colors={colors}
+                onSubAction={data.source === 1 ? runSubCardAction : undefined}
+                subActionBusy={subCardBusy !== null}
+              />
+            )}
             contentContainerStyle={styles.list}
             ListEmptyComponent={
               !loading ? (
@@ -1190,6 +1302,8 @@ const styles = StyleSheet.create({
   },
   queryBar: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
   button: { paddingVertical: 14, paddingHorizontal: 18, borderRadius: 12, alignItems: 'center' },
+  subActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  subAction: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   buttonText: { fontSize: 16, fontWeight: '600' },
   empty: { paddingHorizontal: 22, paddingTop: 46, alignItems: 'center' },
   emptyTitle: { fontSize: 21, fontWeight: '600', marginBottom: 12 },

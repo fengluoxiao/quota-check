@@ -124,6 +124,42 @@ def snapshot_cards(extra):
                     extra.get("codex_"+part+"_reset_after_seconds"),["数据来源：sub2api 后台快照"],extra.get("codex_usage_updated_at")))
     return cards
 
+def _live_usage(payload):
+    if not isinstance(payload, dict): raise Sub2APIError("sub2api 额度响应格式异常。")
+    data=payload.get("usage",payload)
+    if not isinstance(data,dict): raise Sub2APIError("sub2api 额度响应格式异常。")
+    return data
+
+def reset_credit_card(payload):
+    data=_live_usage(payload);credits=data.get("rate_limit_reset_credits")
+    if not isinstance(credits,dict): raise Sub2APIError("当前 sub2api / 上游响应没有返回重置卡次数。")
+    count=number(credits.get("available_count"))
+    if count is None or count<0: raise Sub2APIError("重置卡次数格式无效，未推算可用数量。")
+    lines=["可用重置卡次数："+pretty_number(count)]
+    grants=credits.get("credits")
+    for grant in grants if isinstance(grants,list) else []:
+        if isinstance(grant,dict) and grant.get("expires_at"):
+            expires=local_time(grant["expires_at"])
+            if expires:lines.append("其中一张到期："+expires)
+    return {"title":"重置卡次数","used":None,"remaining":None,"details":"\n".join(lines)}
+
+def codex_credit_card(payload):
+    data=_live_usage(payload);credits=data.get("credits")
+    if not isinstance(credits,dict): raise Sub2APIError("当前 sub2api / 上游响应没有返回点数余额。")
+    unlimited=credits.get("unlimited")
+    balance=credits.get("balance")
+    if unlimited is True:
+        lines=["点数余额：接口标记为不限量"]
+    elif balance is not None and balance!="":
+        value=number(balance)
+        if value is None or value<0 or len(str(balance))>64: raise Sub2APIError("点数余额格式无效，未推算可用余额。")
+        lines=["点数余额："+str(balance)]
+    elif credits.get("has_credits") is False:
+        lines=["点数余额：接口返回没有可展示余额"]
+    else:
+        raise Sub2APIError("接口未返回具体点数余额，未推算可用余额。")
+    return {"title":"Codex 点数","used":None,"remaining":None,"details":"\n".join(lines)}
+
 MESSAGES={
  "INVALID_CREDENTIALS":"sub2api 邮箱或密码不正确。",
  "INVALID_PASSWORD":"sub2api 邮箱或密码不正确。",
@@ -256,3 +292,23 @@ class Sub2APIClient:
         if not snapshot_cards(extra):
             raise Sub2APIError("后台还没有这个 GPT 账号的额度快照。请更新 sub2api 以支持实时查询，或等待后台采集到实际用量。")
         return {"source":"snapshot","account":account,"extra":extra,"updated_at":extra.get("codex_usage_updated_at"),"fallback":fallback}
+
+    def query_usage(self,account):
+        account_id=account.get("id") if isinstance(account,dict) else None
+        if not isinstance(account_id,int) or isinstance(account_id,bool) or account_id<=0:raise Sub2APIError("请选择有效的 GPT 账号。")
+        data=self.request(f"/admin/openai/accounts/{account_id}/quota")
+        if not isinstance(data,dict):raise Sub2APIError("sub2api 额度响应格式异常。")
+        return data
+
+    def query_reset_credits(self,account):
+        return reset_credit_card(self.query_usage(account))
+
+    def query_credits(self,account):
+        return codex_credit_card(self.query_usage(account))
+
+    def refresh_usage(self,account):
+        account_id=account.get("id") if isinstance(account,dict) else None
+        if not isinstance(account_id,int) or isinstance(account_id,bool) or account_id<=0:raise Sub2APIError("请选择有效的 GPT 账号。")
+        data=self.request(f"/admin/openai/accounts/{account_id}/quota/refresh",{})
+        if not isinstance(data,dict):raise Sub2APIError("sub2api 刷新额度响应格式异常。")
+        return {"source":"live","account":account,"usage":data,"updated_at":data.get("fetched_at",data.get("updated_at")),"refreshed":True}

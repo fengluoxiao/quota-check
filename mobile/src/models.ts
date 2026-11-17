@@ -70,7 +70,10 @@ export interface AccountCard {
   error?: string;
   cached?: boolean;
   kind?: 'quota' | 'balance';
+  actions?: SubCardAction[];
+  queries?: Partial<Record<Exclude<SubCardAction, 'refresh'>, UsageWindow[]>>;
 }
+export type SubCardAction = 'reset' | 'credits' | 'refresh';
 export type Json = Record<string, unknown>;
 export const freshVault = (): VaultData => ({ version: 1, source: 0, profiles: {} });
 export const isRecord = (v: unknown): v is Json =>

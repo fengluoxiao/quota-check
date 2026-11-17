@@ -245,11 +245,39 @@ class VaultActions:
                     detail=escape(card["details"],quote=True).replace("\n","&#10;")
                     sections.append(f'<StackPanel Spacing="7"><TextBlock Text="{escape(card["title"],quote=True)}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{percentage}" FontSize="21" FontWeight="SemiBold"/>{bar}<TextBlock Text="{detail}" FontSize="12" TextWrapping="Wrap" Foreground="{{ThemeResource TextFillColorSecondaryBrush}}"/></StackPanel>')
                 if not cards:sections.append('<TextBlock Text="后台未返回额度窗口，没有推算可用比例。" TextWrapping="Wrap"/>')
-            xaml=f'''<Border xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Padding="20" CornerRadius="12" Background="{{ThemeResource CardBackgroundFillColorDefaultBrush}}" BorderBrush="{{ThemeResource CardStrokeColorDefaultBrush}}" BorderThickness="1"><StackPanel Spacing="16"><TextBlock Text="{escape(label,quote=True)}" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{escape(meta,quote=True)}" FontSize="12" TextWrapping="Wrap" Foreground="{{ThemeResource TextFillColorSecondaryBrush}}"/>{''.join(sections)}</StackPanel></Border>'''
+            queries=item.get("queries",{})
+            for kind,label in (("reset","重置卡次数"),("credits","Codex 点数")):
+                for card in queries.get(kind,[]):
+                    sections.append(f'<StackPanel Spacing="7"><TextBlock Text="{escape(label,quote=True)}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{escape(card["details"],quote=True).replace(chr(10),"&#10;")}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/></StackPanel>')
+            buttons=''.join(f'<Button Content="{text}" Tag="{account["id"]} {kind}" Click="SubCardQuery_Click"/>' for kind,text in (("reset","查询重置卡"),("credits","查询点数"),("refresh","刷新快照")))
+            note='<TextBlock Text="按钮只读取或刷新快照；不会调用消耗重置卡的 reset-quota 接口。" FontSize="11" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />'
+            xaml=f'''<Border xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Padding="20" CornerRadius="12" Background="{{ThemeResource CardBackgroundFillColorDefaultBrush}}" BorderBrush="{{ThemeResource CardStrokeColorDefaultBrush}}" BorderThickness="1"><StackPanel Spacing="16"><TextBlock Text="{escape(label,quote=True)}" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{escape(meta,quote=True)}" FontSize="12" TextWrapping="Wrap" Foreground="{{ThemeResource TextFillColorSecondaryBrush}}"/>{''.join(sections)}<StackPanel Orientation="Horizontal" Spacing="8">{buttons}</StackPanel>{note}</StackPanel></Border>'''
             self.Cards.Children.Append(XamlReader.Load(xaml).as_(UIElement))
         self.publish_raw({"accounts":items})
 
     def render_sub(self,payload):self.render_bulk([{"account":payload.get("account",{}),"payload":payload}])
+
+    async def SubCardQuery_Click(self,sender,e):
+        if self.busy or self.card_busy:return
+        tag=str(sender.Tag).strip().split()
+        if len(tag)!=2 or not tag[0].isdigit() or tag[1] not in ("reset","credits","refresh"):return
+        account_id=int(tag[0]);item=next((x for x in self.last_bulk if x.get("account",{}).get("id")==account_id),None)
+        if not item:return
+        self.card_busy=True;sender.IsEnabled=False;sender.Content="查询中……";self.set_busy(True)
+        self.message("正在查询账号卡片", "正在读取该账号的重置卡 / 点数数据。" if tag[1]!="refresh" else "正在刷新额度并保存后台快照。")
+        try:
+            client=await self.ensure_sub_client();account=item["account"]
+            if tag[1]=="refresh":
+                item["payload"]=await asyncio.to_thread(client.refresh_usage,account);item["queries"]={}
+            else:
+                card=await asyncio.to_thread(client.query_reset_credits if tag[1]=="reset" else client.query_credits,account)
+                item.setdefault("queries",{})[tag[1]]=[card]
+            self.remember_sub(self.profile("sub2api"),client)
+            self.render_bulk(self.last_bulk);self.Updated.Text="查询于 "+datetime.now().strftime("%H:%M:%S")
+            self.message("账号卡片查询成功","已读取接口实际返回的数据。","Success")
+        except (quota.QueryError,vault.VaultError) as exc:self.message("账号卡片查询失败",str(exc),"Error")
+        except Exception as exc:self.message("程序出错","卡片查询异常（"+diagnostics.record("sub2api-card",exc)+"）。","Error")
+        finally:self.set_busy(False);self.card_busy=False
 
     def publish_raw(self,payload,key=""):
         from win32more.Microsoft.UI.Xaml import Visibility

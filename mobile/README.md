@@ -7,6 +7,7 @@ Expo SDK 58 + React Native 0.88，使用原生视图、输入框、开关、系�
 - GLM Coding Plan 国内 / 海外站点额度。
 - sub2api 管理员登录、可选 2FA、会话续期、查询全部 GPT/OpenAI OAuth 账号。
 - 每个 GPT 账号一张卡片，单账号错误不影响其他卡片。
+- GPT 卡片内可查询重置卡次数、Codex 点数，或刷新后台快照；不会调用消耗重置卡的 reset-quota。
 - 设备加密保存连接，导入后不回填凭据，不提供再次导出。
 - 导入和导出与 Windows 版兼容的跨电脑 .sqv 文件。
 

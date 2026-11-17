@@ -13,6 +13,7 @@ import {
   validateKey,
   formatTime,
 } from './models';
+import type { SubCardAction, UsageWindow } from './models';
 export interface RequestSpec {
   url: string;
   method: 'GET' | 'POST';
@@ -34,6 +35,49 @@ export class APIError extends Error {
   }
 }
 export class NeedsOTP extends Error {}
+function liveUsage(payload: unknown): Json {
+  if (!isRecord(payload)) throw new Error('额度响应格式异常。');
+  const data = payload.usage ?? payload;
+  if (!isRecord(data)) throw new Error('额度响应格式异常。');
+  return data;
+}
+export function resetCreditCard(payload: unknown): UsageWindow {
+  const credits = liveUsage(payload).rate_limit_reset_credits;
+  if (
+    !isRecord(credits) ||
+    typeof credits.available_count !== 'number' ||
+    credits.available_count < 0
+  )
+    throw new Error('当前 sub2api / 上游响应没有返回重置卡次数。');
+  const details = ['可用重置卡次数：' + credits.available_count.toLocaleString('en-US')];
+  if (Array.isArray(credits.credits))
+    for (const grant of credits.credits)
+      if (isRecord(grant) && grant.expires_at) {
+        const time = formatTime(grant.expires_at);
+        if (time) details.push('其中一张到期：' + time);
+      }
+  return {
+    title: '重置卡次数',
+    used: null,
+    remaining: null,
+    reset: '',
+    detail: details.join('\n'),
+  };
+}
+export function codexCreditCard(payload: unknown): UsageWindow {
+  const credits = liveUsage(payload).credits;
+  if (!isRecord(credits)) throw new Error('当前 sub2api / 上游响应没有返回点数余额。');
+  let detail: string;
+  if (credits.unlimited === true) detail = '点数余额：接口标记为不限量';
+  else if (typeof credits.balance === 'string' && credits.balance.trim()) {
+    const value = Number(credits.balance);
+    if (!Number.isFinite(value) || value < 0 || credits.balance.length > 64)
+      throw new Error('点数余额格式无效，未推算可用余额。');
+    detail = '点数余额：' + credits.balance;
+  } else if (credits.has_credits === false) detail = '点数余额：接口返回没有可展示余额';
+  else throw new Error('接口未返回具体点数余额，未推算可用余额。');
+  return { title: 'Codex 点数', used: null, remaining: null, reset: '', detail };
+}
 const errors: Record<string, string> = {
   INVALID_CREDENTIALS: '邮箱或密码不正确。',
   INVALID_PASSWORD: '邮箱或密码不正确。',
@@ -169,9 +213,9 @@ export class SubClient {
     }
     this.accept(data);
   }
-  async request(route: string): Promise<unknown> {
+  async request(route: string, body?: Json): Promise<unknown> {
     try {
-      return await this.once(route);
+      return await this.once(route, body);
     } catch (e) {
       if (
         !(e instanceof APIError) ||
@@ -186,8 +230,30 @@ export class SubClient {
         false,
       );
       this.accept(data, false);
-      return this.once(route);
+      return this.once(route, body);
     }
+  }
+  private accountId(account: Account): number {
+    if (!Number.isInteger(account.id) || account.id <= 0)
+      throw new Error('请选择有效的 GPT 账号。');
+    return account.id;
+  }
+  async queryUsage(account: Account): Promise<unknown> {
+    return this.request('/admin/openai/accounts/' + this.accountId(account) + '/quota');
+  }
+  async queryResetCredits(account: Account): Promise<UsageWindow> {
+    return resetCreditCard(await this.queryUsage(account));
+  }
+  async queryCredits(account: Account): Promise<UsageWindow> {
+    return codexCreditCard(await this.queryUsage(account));
+  }
+  async refreshUsage(account: Account): Promise<Json> {
+    let data: unknown = await this.request(
+      '/admin/openai/accounts/' + this.accountId(account) + '/quota/refresh',
+      {},
+    );
+    if (!isRecord(data)) throw new Error('sub2api 刷新额度响应格式异常。');
+    return data;
   }
   async accounts(): Promise<Account[]> {
     const rows: Account[] = [];
@@ -238,6 +304,7 @@ export class SubClient {
             .filter(Boolean)
             .join(' · '),
           windows: subWindows(data),
+          actions: ['reset', 'credits', 'refresh'] satisfies SubCardAction[],
         };
       } catch (e) {
         if (!(e instanceof APIError) || ![404, 405, 501].includes(e.status)) throw e;
@@ -256,6 +323,7 @@ export class SubClient {
         .join(' · '),
       windows,
       cached: true,
+      actions: ['reset', 'credits', 'refresh'] satisfies SubCardAction[],
     };
   }
 }
@@ -283,6 +351,7 @@ export async function queryAll(
         subtitle: '读取失败',
         windows: [],
         error: e instanceof Error ? e.message : '读取失败，请检查后台。',
+        actions: ['reset', 'credits', 'refresh'] satisfies SubCardAction[],
       };
     }
     out.push(card);

@@ -9,6 +9,7 @@ import {
   Transport,
   RequestSpec,
 } from '../src/api';
+import { subWindows } from '../src/models';
 const profile = () => ({
   url: 'https://sub.example.test',
   email: 'admin@example.test',
@@ -54,6 +55,17 @@ function backend(mode = 'live') {
             ];
       return ok({ items, total: mode === 'pages' ? 2 : 2 });
     }
+    if (route.endsWith('/quota/refresh'))
+      return ok({
+        plan_type: 'plus',
+        fetched_at: 1794830400,
+        cache_persisted: true,
+        credits_cache_persisted: true,
+        rate_limit: {
+          primary_window: { used_percent: 30, limit_window_seconds: 18000 },
+          secondary_window: { used_percent: 70, limit_window_seconds: 604800 },
+        },
+      });
     if (route.includes('/openai/accounts/') && route.endsWith('/quota')) {
       if (mode === 'old') return fail(404);
       if (mode === 'partial' && route.includes('/21/'))
@@ -66,6 +78,11 @@ function backend(mode = 'live') {
           primary_window: { used_percent: 30, limit_window_seconds: 18000 },
           secondary_window: { used_percent: 70, limit_window_seconds: 604800 },
         },
+        rate_limit_reset_credits: {
+          available_count: 2,
+          credits: [{ expires_at: '2026-11-18T00:00:00Z' }],
+        },
+        credits: { has_credits: true, unlimited: false, balance: '18.40' },
       });
     }
     if (route.startsWith('/api/v1/admin/accounts/'))
@@ -95,6 +112,25 @@ test('Login and read-only quota requests use documented endpoints', async () => 
   assert.equal(b.calls.at(-1)?.method, 'GET');
   assert.equal(b.calls.at(-1)?.headers.Authorization, 'Bearer test-access');
   assert.ok(!b.calls.some((r) => r.url.includes('/reset-quota') || r.url.includes('/responses')));
+});
+test('Card buttons read reset credits and points without consuming reset quota', async () => {
+  const b = backend();
+  const c = new SubClient(profile(), b.transport);
+  await c.login();
+  const account = { id: 20, name: 'GPT One' };
+  const reset = await c.queryResetCredits(account);
+  const credits = await c.queryCredits(account);
+  assert.equal(reset.detail, '可用重置卡次数：2\n其中一张到期：11/18 08:00');
+  assert.equal(credits.detail, '点数余额：18.40');
+  const quotaCalls = b.calls.filter((r) => r.url.endsWith('/quota'));
+  assert.equal(quotaCalls.length, 2);
+  assert.ok(quotaCalls.every((r) => r.method === 'GET'));
+  const refreshed = await c.refreshUsage(account);
+  assert.equal(subWindows(refreshed).length, 2);
+  const refresh = b.calls.at(-1)!;
+  assert.equal(refresh.method, 'POST');
+  assert.ok(refresh.url.endsWith('/quota/refresh'));
+  assert.ok(!b.calls.some((r) => r.url.includes('/reset-quota')));
 });
 test('All accounts produce one card, with independent failures', async () => {
   const b = backend('partial');

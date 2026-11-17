@@ -172,6 +172,7 @@ def launch(*, test_hook=None):
         def OnLaunched(self, args):
             self.initializing = True
             self.busy = False
+            self.card_busy = False
             self.newapi_client = None
             self.channel_rows = []
             self.imported_keys = []
@@ -402,6 +403,13 @@ def check_ui(input_path, output_path):
                 if not view.sub_accounts:
                     raise RuntimeError("Sub2api diagnostic query did not return accounts")
                 passed = view.Notice.Title in ("GPT 额度查询成功", "已读取 GPT 额度快照") or (payload.get("expect_partial") and view.Notice.Title == "GPT 额度部分成功")
+                if payload.get("_sub_card_query"):
+                    class ProbeButton:
+                        def __init__(self):self.Tag="20 reset";self.IsEnabled=True;self.Content="查询重置卡"
+                    button=ProbeButton();await view.SubCardQuery_Click(button,None)
+                    item=next(x for x in view.last_bulk if x.get("account",{}).get("id")==20)
+                    report["sub_card_button"]=bool(item.get("queries",{}).get("reset"))
+                    passed=passed and report["sub_card_button"] and view.Notice.Title=="账号卡片查询成功"
             elif payload.get("_provider") == "newapi":
                 view.NewURL.Text = payload["url"]
                 view.NewUsername.Text = payload["username"]

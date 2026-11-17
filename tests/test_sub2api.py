@@ -12,7 +12,9 @@ import quota
 LIVE={"plan_type":"plus","fetched_at":1794830400,"rate_limit":{"allowed":True,"limit_reached":False,
  "primary_window":{"used_percent":35,"limit_window_seconds":18000,"reset_at":1794834000},
  "secondary_window":{"used_percent":82,"limit_window_seconds":604800,"reset_at":1795003200}},
- "additional_rate_limits":[{"limit_name":"Spark","rate_limit":{"primary_window":{"used_percent":12,"limit_window_seconds":18000,"reset_after_seconds":3600}}}]}
+ "additional_rate_limits":[{"limit_name":"Spark","rate_limit":{"primary_window":{"used_percent":12,"limit_window_seconds":18000,"reset_after_seconds":3600}}}],
+ "rate_limit_reset_credits":{"available_count":2,"credits":[{"expires_at":"2026-11-18T00:00:00Z"}]},
+ "credits":{"has_credits":True,"unlimited":False,"balance":"18.40"}}
 SNAPSHOT={"codex_5h_used_percent":40,"codex_7d_used_percent":90,"codex_5h_reset_at":"2026-11-16T19:00:00Z","codex_usage_updated_at":"2026-11-16T12:00:00Z","private_key":"must-not-keep"}
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -44,6 +46,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if token not in ("Bearer access-secret","Bearer refreshed-secret"):return self.respond(status=401)
         if mode=="expired" and token=="Bearer access-secret":return self.respond(status=401,reason="TOKEN_EXPIRED")
         if mode=="forbidden":return self.respond(status=403,reason="ADMIN_REQUIRED")
+        if route.endswith("/quota/refresh"):
+            return self.respond({**LIVE,"cache_persisted":True,"credits_cache_persisted":True})
         if route=="/api/v1/admin/accounts":
             params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
             if params.get("platform")!=["openai"] or params.get("type")!=["oauth"]:return self.respond(status=400)
@@ -91,6 +95,20 @@ class ClientTests(unittest.TestCase):
         self.assertIsNotNone(self.client.pending)
         self.assertEqual(self.client.complete_login("123456")["role"],"admin")
         self.assertIsNone(self.client.pending)
+    def test_card_buttons_read_reset_credits_and_points_without_reset(self):
+        self.login();account={"id":20,"name":"GPT Plus"}
+        reset=self.client.query_reset_credits(account);points=self.client.query_credits(account)
+        self.assertIn("可用重置卡次数：2",reset["details"])
+        self.assertIn("点数余额：18.40",points["details"])
+        quota_calls=[call for call in self.server.calls if call[1].endswith("/quota")]
+        self.assertEqual(len(quota_calls),2);self.assertTrue(all(call[0]=="GET" for call in quota_calls))
+        self.assertFalse(any("/reset-quota" in call[1] for call in self.server.calls))
+    def test_refresh_updates_usage_without_consuming_reset_credit(self):
+        self.login();payload=self.client.refresh_usage({"id":20})
+        self.assertTrue(payload["refreshed"]);self.assertEqual(len(sub2api.usage_cards(payload)),3)
+        refresh=[call for call in self.server.calls if call[1].endswith("/quota/refresh")]
+        self.assertEqual(len(refresh),1);self.assertEqual(refresh[0][0],"POST")
+        self.assertFalse(any("/reset-quota" in call[1] for call in self.server.calls))
     def test_invalid_otp_does_not_request(self):
         self.client.pending="temporary-secret";n=len(self.server.calls)
         for value in ("", "123", "１２３４５６", "12345a"):
@@ -165,6 +183,10 @@ class ParsingTests(unittest.TestCase):
         cards=sub2api.usage_cards({"five_hour":{"utilization":25,"resets_at":"2026-11-16T12:00:00Z"},"seven_day":None})
         self.assertEqual(len(cards),1);self.assertEqual(cards[0]["remaining"],75)
         self.assertEqual(sub2api.usage_cards({"rate_limit":None}),[])
+    def test_missing_card_values_are_not_invented(self):
+        with self.assertRaises(sub2api.Sub2APIError):sub2api.reset_credit_card({"rate_limit":{}})
+        with self.assertRaises(sub2api.Sub2APIError):sub2api.codex_credit_card({"credits":{"has_credits":True,"unlimited":False,"balance":None}})
+        self.assertIn("不限量",sub2api.codex_credit_card({"credits":{"has_credits":True,"unlimited":True,"balance":None}})["details"])
     def test_raw_credential_redaction(self):
         raw=quota.redact_payload({"access_token":"a","refresh_token":"b","credentials":{"session_key":"c"},"totalTokens":123})
         self.assertEqual(raw["access_token"],"[已隐藏]");self.assertEqual(raw["refresh_token"],"[已隐藏]")
