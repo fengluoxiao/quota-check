@@ -2,6 +2,8 @@
 
 [下载 Windows x64 版本](https://github.com/fengluoxiao/quota-check/releases/latest) · [安全边界](SECURITY.md)
 
+Windows 需要 Windows App Runtime 2.6.5 或更新版本（已有运行库的电脑可直接更新 EXE）；官方安装入口见 https://learn.microsoft.com/windows/apps/windows-app-sdk/downloads。
+
 运行 SubscriptionQuota-v1.5.exe。左侧连接服务，右侧显示额度；右上角提供“保存到文件”和“导入文件”。
 
 ## 移动端（iOS 优先）
