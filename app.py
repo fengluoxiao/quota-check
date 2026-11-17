@@ -406,9 +406,20 @@ def check_ui(input_path, output_path):
                 if payload.get("_sub_card_query"):
                     class ProbeButton:
                         def __init__(self):self.Tag="20 reset";self.IsEnabled=True;self.Content="查询重置卡"
-                    button=ProbeButton();await view.SubCardQuery_Click(button,None)
+                    from win32more.Microsoft.UI.Xaml.Automation.Peers import ButtonAutomationPeer
+                    from win32more.Microsoft.UI.Xaml.Controls import Border as ProbeBorder, Button as ProbeButtonClass, Panel as ProbePanel
+                    card_element=view.Cards.Children.GetAt(0)
+                    content=card_element.as_(ProbeBorder).Child.as_(ProbePanel)
+                    actions=content.Children.GetAt(content.Children.Size-2).as_(ProbePanel)
+                    native_button=actions.Children.GetAt(0).as_(ProbeButtonClass)
+                    ButtonAutomationPeer(native_button).Invoke()
+                    for _ in range(20):
+                        await asyncio.sleep(0.1)
+                        item=next(x for x in view.last_bulk if x.get("account",{}).get("id")==20)
+                        if item.get("queries",{}).get("reset"):break
                     item=next(x for x in view.last_bulk if x.get("account",{}).get("id")==20)
                     report["sub_card_button"]=bool(item.get("queries",{}).get("reset"))
+                    report["sub_card_notice"]=view.Notice.Title
                     passed=passed and report["sub_card_button"] and view.Notice.Title=="账号卡片查询成功"
             elif payload.get("_provider") == "newapi":
                 view.NewURL.Text = payload["url"]

@@ -256,15 +256,18 @@ class VaultActions:
             actions=content.Children.GetAt(content.Children.Size-2)
             actions_list=actions.as_(Panel).Children
             for button,(kind,tag) in zip(actions_list, (("reset",f"{account['id']} reset"),("credits",f"{account['id']} credits"),("refresh",f"{account['id']} refresh"))):
-                routed_button=button.as_(Button);routed_button.Tag=tag;routed_button.Click += self.SubCardQuery_Click
+                routed_button=button.as_(Button);routed_button.Name="SubCard_"+tag.replace(" ","_");routed_button.Click += self.SubCardQuery_Click
             self.Cards.Children.Append(card.as_(UIElement))
         self.publish_raw({"accounts":items})
 
     def render_sub(self,payload):self.render_bulk([{"account":payload.get("account",{}),"payload":payload}])
 
     async def SubCardQuery_Click(self,sender,e):
+        self.message("卡片按钮收到点击","正在转换为按钮对象。")
         if self.busy or self.card_busy:return
-        tag=str(sender.Tag).strip().split()
+        from win32more.Microsoft.UI.Xaml.Controls import Button
+        sender=sender.as_(Button)
+        tag=sender.Name.removeprefix("SubCard_").strip().split("_")
         if len(tag)!=2 or not tag[0].isdigit() or tag[1] not in ("reset","credits","refresh"):return
         account_id=int(tag[0]);item=next((x for x in self.last_bulk if x.get("account",{}).get("id")==account_id),None)
         if not item:return
