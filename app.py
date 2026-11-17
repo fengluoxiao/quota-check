@@ -8,6 +8,7 @@ from html import escape
 
 import quota
 import kimi
+import service_providers
 import settings
 import newapi
 import diagnostics
@@ -27,7 +28,7 @@ XAML = r'''<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentatio
     </Grid.ColumnDefinitions>
     <StackPanel Spacing="5">
       <TextBlock Text="订阅额度" FontSize="30" FontWeight="SemiBold" />
-      <TextBlock Text="GLM / Kimi Coding Plan 与 GPT / Codex 账号用量" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+      <TextBlock Text="多家 Coding / Token / Agent Plan 与 API 账户余额" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
     </StackPanel>
     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
       <Button x:Name="ImportFile" Content="导入文件" Click="ImportFile_Click" />
@@ -45,6 +46,15 @@ XAML = r'''<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentatio
           <ComboBoxItem Content="GLM Coding Plan" />
           <ComboBoxItem Content="GPT / Codex · sub2api" />
           <ComboBoxItem Content="Kimi Coding Plan" />
+          <ComboBoxItem Content="Claude Code" />
+          <ComboBoxItem Content="阿里百炼 Token Plan" />
+          <ComboBoxItem Content="阿里百炼 Coding Plan" />
+          <ComboBoxItem Content="方舟 Agent Plan · 个人版" />
+          <ComboBoxItem Content="小米 MiMo Token Plan" />
+          <ComboBoxItem Content="讯飞星火 Coding Plan" />
+          <ComboBoxItem Content="讯飞 Astron Token Plan" />
+          <ComboBoxItem Content="DeepSeek API 余额" />
+          <ComboBoxItem Content="小米 MiMo API 余额" />
         </ComboBox>
         <Button x:Name="ResetConnection" Content="更换连接（清除本机保存）" Click="ResetConnection_Click" HorizontalAlignment="Stretch" />
         <Border Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" x:Name="GlmPanel">
@@ -72,6 +82,16 @@ XAML = r'''<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentatio
             <PasswordBox x:Name="KimiKey" Header="Kimi Coding Plan API Key" PlaceholderText="粘贴 Kimi Coding Plan Key" PasswordRevealMode="Hidden" MaxLength="2048" />
             <TextBlock Text="使用 Kimi Code 套餐 Key，查询周额度和周期额度；开放平台余额 Key 不适用。" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             <Button x:Name="KimiQuery" Content="查询 Kimi 额度" Style="{StaticResource AccentButtonStyle}" Click="KimiQuery_Click" HorizontalAlignment="Stretch" />
+          </StackPanel>
+        </Border>
+        <Border x:Name="ServicePanel" Visibility="Collapsed" Padding="20" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+          <StackPanel Spacing="14">
+            <TextBlock x:Name="ServiceLabel" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock x:Name="ServiceDescription" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <PasswordBox x:Name="ServiceKey" Header="访问凭据" PasswordRevealMode="Hidden" MaxLength="32768" />
+            <PasswordBox x:Name="ServiceSecret" Header="辅助凭据" PasswordRevealMode="Hidden" MaxLength="32768" Visibility="Collapsed" />
+            <PasswordBox x:Name="ServiceSession" Header="会话凭据" PasswordRevealMode="Hidden" MaxLength="32768" Visibility="Collapsed" />
+            <Button x:Name="ServiceQuery" Content="查询当前服务" Style="{StaticResource AccentButtonStyle}" Click="ServiceQuery_Click" HorizontalAlignment="Stretch" />
           </StackPanel>
         </Border>
         <Expander x:Name="NewAPIExpander" Header="从 New API 登录并导入（可选）" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
@@ -159,7 +179,7 @@ def launch(*, test_hook=None):
             self.sub_accounts = []
             self.initialize_vault(test_mode=test_hook is not None)
             self.win = Window()
-            self.win.Title = "订阅额度 · GLM / Kimi / GPT · 1.4"
+            self.win.Title = "订阅额度 · 多服务 · 1.5"
             self.win.SystemBackdrop = MicaBackdrop()
             self.win.Content = XamlLoader.Load(self, XAML)
             self.win.AppWindow.Resize(SizeInt32(Width=1200, Height=880))
@@ -317,7 +337,7 @@ def launch(*, test_hook=None):
                 title = escape(card["title"], quote=True)
                 details = escape(card["details"], quote=True).replace("\n", "&#10;")
                 if used is None:
-                    percentage = "接口未提供有效的使用比例"
+                    percentage = "账户余额" if card.get("kind")=="balance" else "接口未提供有效的使用比例"
                     bar = ""
                 else:
                     percentage = f"剩余 {card['remaining']:.1f}% · 已用 {used:.1f}%"
@@ -347,13 +367,24 @@ def check_ui(input_path, output_path):
     async def probe(view):
         previous_fetch, previous_save = quota.fetch_quota, settings.save
         previous_kimi = kimi.fetch_quota
+        previous_service = service_providers.fetch_usage
         try:
             live_transport = payload.get("_live_transport") is True
             if not live_transport:
                 quota.fetch_quota = lambda key, site: payload.get("quota", payload)
                 kimi.fetch_quota = lambda key: payload.get("quota", payload)
+                service_providers.fetch_usage = lambda name,record: {"cards":service_providers.parse_usage(name,payload["quota"],sealed=record.get("sealed",False))}
             settings.save = lambda *args, **kwargs: None
-            if payload.get("_provider") == "kimi":
+            if payload.get("_provider") in service_providers.BY_ID:
+                spec=service_providers.BY_ID[payload["_provider"]]
+                view.Source.SelectedIndex=spec["source"]
+                controls={"secret":view.ServiceKey,"secret2":view.ServiceSecret,"session_token":view.ServiceSession}
+                for field in spec["fields"]:controls[field["key"]].Password="diagnostic-only-secret"
+                await view.ServiceQuery_Click(None,None)
+                passed=view.Notice.Title=="查询成功"
+                report["service_controls"]=bool(view.ServicePanel.Visibility==0 and view.GlmPanel.Visibility!=0 and view.KimiPanel.Visibility!=0)
+                passed=passed and report["service_controls"]
+            elif payload.get("_provider") == "kimi":
                 view.Source.SelectedIndex = 2
                 view.KimiKey.Password = "diagnostic-only-kimi"
                 await view.KimiQuery_Click(None,None)
@@ -414,6 +445,10 @@ def check_ui(input_path, output_path):
                     await view.SubQuery_Click(None, None)
                     clean_fields = not view.SubEmail.Text and not view.SubPassword.Password
                     read_only = view.SubURL.IsReadOnly and view.SubEmail.IsReadOnly and not view.SubPassword.IsEnabled
+                elif payload.get("_provider") in service_providers.BY_ID:
+                    await view.ServiceQuery_Click(None,None)
+                    clean_fields = not view.ServiceKey.Password and not view.ServiceSecret.Password and not view.ServiceSession.Password
+                    read_only = not view.ServiceKey.IsEnabled
                 elif payload.get("_provider") == "kimi":
                     await view.KimiQuery_Click(None,None)
                     clean_fields = not view.KimiKey.Password
@@ -443,6 +478,7 @@ def check_ui(input_path, output_path):
         finally:
             quota.fetch_quota, settings.save = previous_fetch, previous_save
             kimi.fetch_quota = previous_kimi
+            service_providers.fetch_usage = previous_service
             Path(output_path).write_text(json.dumps(report, ensure_ascii=False), encoding="utf-8")
             view.win.Close()
             view.Exit()

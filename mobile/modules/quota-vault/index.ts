@@ -1,5 +1,7 @@
 import { requireNativeModule } from 'expo-modules-core';
 export interface QuotaVaultModule {
+  sha256(value: string): string;
+  hmacSHA256(keyHex: string, message: string): string;
   generateKey(): string;
   seal(plaintext: string, mode: number, secret: string): Promise<string>;
   open(blob: string, secret: string): Promise<string>;

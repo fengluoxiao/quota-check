@@ -1,0 +1,157 @@
+[
+  {
+    "source": 3,
+    "id": "claude",
+    "label": "Claude Code",
+    "auth": "bearer",
+    "fields": [
+      {
+        "key": "secret",
+        "label": "Claude OAuth Access Token",
+        "required": true
+      }
+    ],
+    "help": "使用 Claude Code 的 OAuth 访问令牌，不是 Anthropic 开放平台 API Key。令牌过期后需更新。",
+    "kind": "quota"
+  },
+  {
+    "source": 4,
+    "id": "aliyun_token",
+    "label": "阿里百炼 Token Plan",
+    "auth": "ali",
+    "fields": [
+      {
+        "key": "secret",
+        "label": "百炼控制台 Access Token",
+        "required": true
+      }
+    ],
+    "help": "使用 bailian auth login --console 获得的控制台访问令牌，不是模型 sk- Key。当前连接国内北京站点。",
+    "kind": "quota"
+  },
+  {
+    "source": 5,
+    "id": "aliyun_coding",
+    "label": "阿里百炼 Coding Plan",
+    "auth": "ali",
+    "fields": [
+      {
+        "key": "secret",
+        "label": "百炼控制台 Access Token",
+        "required": true
+      }
+    ],
+    "help": "使用百炼 CLI 控制台访问令牌查询国内 Coding Plan；模型调用 Key 不具有控制台查询权限。",
+    "kind": "quota"
+  },
+  {
+    "source": 6,
+    "id": "ark_agent",
+    "label": "方舟 Agent Plan · 个人版",
+    "auth": "volc",
+    "fields": [
+      {
+        "key": "secret",
+        "label": "火山 Access Key ID",
+        "required": true
+      },
+      {
+        "key": "secret2",
+        "label": "Secret Access Key",
+        "required": true
+      },
+      {
+        "key": "session_token",
+        "label": "STS Session Token（临时凭据时必填）",
+        "required": false
+      }
+    ],
+    "help": "查询个人版 Agent Plan 的 AFP 额度。使用有 GetAFPUsage 权限的 AK/SK；若为 STS，必须同时填写 Session Token。",
+    "kind": "quota"
+  },
+  {
+    "source": 7,
+    "id": "mimo",
+    "label": "小米 MiMo Token Plan",
+    "auth": "bearer",
+    "fields": [
+      {
+        "key": "secret",
+        "label": "MiMo Token Plan API Key",
+        "required": true
+      }
+    ],
+    "help": "查询套餐周期积分。普通按量计费 Key 请改选 MiMo API 余额。",
+    "kind": "quota"
+  },
+  {
+    "source": 8,
+    "id": "spark",
+    "label": "讯飞星火 Coding Plan",
+    "auth": "cookie",
+    "fields": [
+      {
+        "key": "secret",
+        "label": "maas.xfyun.cn 登录 Cookie",
+        "required": true
+      },
+      {
+        "key": "secret2",
+        "label": "控制台 Authorization（可选）",
+        "required": false
+      }
+    ],
+    "help": "使用自己登录讯飞 MaaS 控制台后的完整 Cookie（含 ssoSessionId、tenantToken）。会话过期需更新；只读取套餐列表。",
+    "kind": "quota"
+  },
+  {
+    "source": 9,
+    "id": "astron",
+    "label": "讯飞 Astron Token Plan",
+    "auth": "cookie",
+    "fields": [
+      {
+        "key": "secret",
+        "label": "maas.xfyun.cn 登录 Cookie",
+        "required": true
+      },
+      {
+        "key": "secret2",
+        "label": "控制台 Authorization（可选）",
+        "required": false
+      }
+    ],
+    "help": "逐席位读取真实已用积分与总积分，不把席位数量当作 Token 额度。Cookie 过期后需重新登录官网更新。",
+    "kind": "quota"
+  },
+  {
+    "source": 10,
+    "id": "deepseek",
+    "label": "DeepSeek API 余额",
+    "auth": "bearer",
+    "fields": [
+      {
+        "key": "secret",
+        "label": "DeepSeek API Key",
+        "required": true
+      }
+    ],
+    "help": "查询官方 API 账户余额（现金、赠金与总余额），不是订阅窗口百分比。",
+    "kind": "balance"
+  },
+  {
+    "source": 11,
+    "id": "mimo_balance",
+    "label": "小米 MiMo API 余额",
+    "auth": "bearer",
+    "fields": [
+      {
+        "key": "secret",
+        "label": "MiMo 普通 API Key",
+        "required": true
+      }
+    ],
+    "help": "查询按量计费账户余额、冻结资金及可用授信。Token Plan Key 请改选 MiMo Token Plan。",
+    "kind": "balance"
+  }
+]

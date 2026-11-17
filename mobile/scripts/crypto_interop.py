@@ -1,16 +1,26 @@
 """Cross-check the actual Swift/C codec against the existing desktop portable format."""
-import base64,http.server,json,subprocess,sys,threading
+import base64,hashlib,hmac,http.server,json,subprocess,sys,threading
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 import vault
+import service_providers
 executable=sys.argv[1]
 password='native-portable-test-password-2026'
 profile={'version':1,'source':2,'profiles':{'glm':{'site':'cn','key':'test-interop-key','sealed':False},'kimi':{'key':'test-kimi-interop-key','sealed':False}}}
+for spec in service_providers.CATALOG:
+    profile["profiles"][spec["id"]]={**{f["key"]:"test-native-service-secret" for f in spec["fields"]},"sealed":False}
+profile["source"]=9
 def native(body,success=True):
     p=subprocess.run([executable],input=json.dumps(body).encode(),capture_output=True,timeout=30)
     result=json.loads(p.stdout)
     assert result['ok'] is success,result
     return result
+for text in ('quota-check','中文签名校验'):
+    assert native({'op':'hash','value':text})['digest']==hashlib.sha256(text.encode()).hexdigest()
+    for key in (b'test',bytes([11])*200):
+        assert native({'op':'hash','value':text,'keyHex':key.hex()})['digest']==hmac.new(key,text.encode(),hashlib.sha256).hexdigest()
+native({'op':'hash','value':'test','keyHex':'not-hex'},False)
+print('Native CryptoKit SHA-256 and HMAC agree with Python, including UTF-8 and long keys.')
 blob=vault.encode(profile,password=password)
 opened=native({'op':'open','blob':base64.b64encode(blob).decode(),'secret':password})
 assert json.loads(opened['plaintext'])==profile

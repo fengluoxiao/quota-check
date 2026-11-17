@@ -1,8 +1,8 @@
-# Quota Check · GLM / Kimi / GPT 订阅额度查询
+# Quota Check · 多服务订阅额度与账户余额
 
 [下载 Windows x64 版本](https://github.com/fengluoxiao/quota-check/releases/latest) · [安全边界](SECURITY.md)
 
-运行 SubscriptionQuota-v1.4.exe。左侧连接服务，右侧显示额度；右上角提供“保存到文件”和“导入文件”。
+运行 SubscriptionQuota-v1.5.exe。左侧连接服务，右侧显示额度；右上角提供“保存到文件”和“导入文件”。
 
 ## 移动端（iOS 优先）
 
@@ -103,3 +103,7 @@ python -m unittest discover -s tests -v
 Kimi 连接可保存到加密 .sqv 文件，在更新后的 Windows / iOS 应用间导入。导入后隐藏 Key 并禁止再次导出；旧版应用不认识新增 Kimi 连接，需要一起更新。已有 GLM / sub2api 文件仍可使用。
 
 缺少 used / remaining 时不会补成零使用，缺少重置时间时不推算。开发测试的协议样例仅位于 tests/fixtures，不会作为产品数据或查询失败后的回退。
+
+## 多服务支持（v1.5.0）
+
+Windows 与 iOS 同步支持 Claude Code、阿里 Token Plan / Coding Plan、方舟 Agent Plan 个人版、小米 MiMo Token Plan / API 余额、讯飞星火 Coding Plan、Astron Token Plan、DeepSeek API 余额。查询方法、凭据类型与边界见 [服务接入说明](PROVIDERS.md)。每个服务独立加密保存；余额不会伪装成套餐百分比，未知字段不会补成零使用。移动端使用原生服务选择列表。

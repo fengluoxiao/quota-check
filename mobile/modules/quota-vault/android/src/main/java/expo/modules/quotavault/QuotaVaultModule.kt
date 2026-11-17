@@ -29,6 +29,18 @@ class QuotaVaultModule : Module() {
   private fun storage(): File = File(requireNotNull(appContext.reactContext).noBackupFilesDir,"quota-connections.sqv")
   override fun definition() = ModuleDefinition {
     Name("QuotaVault")
+    Function("sha256") { text: String ->
+      require(text.toByteArray(Charsets.UTF_8).size <= 2_000_000)
+      java.security.MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 255) }
+    }
+    Function("hmacSHA256") { keyHex: String, text: String ->
+      require(keyHex.length in 2..65536 && keyHex.length % 2 == 0 && keyHex.matches(Regex("[0-9a-fA-F]+")))
+      require(text.toByteArray(Charsets.UTF_8).size <= 2_000_000)
+      val key = keyHex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+      val mac = javax.crypto.Mac.getInstance("HmacSHA256")
+      mac.init(SecretKeySpec(key, "HmacSHA256"))
+      mac.doFinal(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 255) }
+    }
     Function("generateKey") { b64(bytes(32)) }
     AsyncFunction("seal") { plain: String, mode: Int, secret: String ->
       val data=plain.toByteArray(Charsets.UTF_8); require(data.size<=1024*1024 && mode in 1..2) { "配置大小或格式无效。" }

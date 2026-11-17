@@ -10,7 +10,7 @@ Pod::Spec.new do |s|
   s.license = { :type => 'Proprietary application integration; Argon2 reference CC0' }
   s.platforms = { :ios => '17.0' }
   s.swift_version = '5.9'
-  s.source = { :git => 'https://github.com/fengluoxiao/quota-check.git', :tag => 'v1.3.0' }
+  s.source = { :git => 'https://github.com/fengluoxiao/quota-check.git', :tag => 'v1.5.0' }
   s.static_framework = true
   s.dependency 'ExpoModulesCore'
   s.source_files = '*.{swift,h,c}', 'vendor/argon2/include/*.h', 'vendor/argon2/src/*.h', 'vendor/argon2/src/{argon2,core,encoding,ref,thread}.c', 'vendor/argon2/src/blake2/{blake2b.c,blake2.h,blake2-impl.h,blamka-round-ref.h}'

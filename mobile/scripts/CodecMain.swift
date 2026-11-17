@@ -12,6 +12,10 @@ import Foundation
       } else if op=="open" {
         guard let data=Data(base64Encoded:request["blob"] as? String ?? "") else { throw VaultFailure.invalid }
         result=["ok":true,"plaintext":try NativeVaultCodec.open(data,secret:request["secret"] as? String ?? "")]
+      } else if op=="hash" {
+        let text=request["value"] as? String ?? ""
+        if let key=request["keyHex"] as? String { result=["ok":true,"digest":try NativeHashCodec.hmacSHA256(key,text)] }
+        else { result=["ok":true,"digest":try NativeHashCodec.sha256(text)] }
       } else if op=="http" {
         let response=try await SecureHTTP.perform(url:request["url"] as? String ?? "",method:request["method"] as? String ?? "GET",headers:request["headers"] as? [String:String] ?? [:],body:request["body"] as? String)
         result=["ok":true,"status":response.status,"body":response.body]

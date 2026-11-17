@@ -11,6 +11,8 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
 import settings
+import service_providers
+import quota
 
 MAGIC=b"SQVAULT\0"
 VERSION=1
@@ -25,8 +27,13 @@ def fresh():return {"version":1,"source":0,"profiles":{}}
 def validate(data):
     if not isinstance(data,dict) or data.get("version")!=1 or not isinstance(data.get("profiles"),dict):
         raise VaultError("加密连接文件的数据格式无效。")
-    result=fresh();result["source"]=data.get("source") if type(data.get("source")) is int and data.get("source") in (0,1,2) else 0
+    result=fresh();result["source"]=data.get("source") if type(data.get("source")) is int and data.get("source") in range(12) else 0
     for name,record in data["profiles"].items():
+        if name in service_providers.BY_ID:
+            if not isinstance(record,dict) or ("sealed" in record and not isinstance(record["sealed"],bool)):raise VaultError("服务连接格式无效。")
+            try:result["profiles"][name]=service_providers.validate_profile(name,record)
+            except quota.QueryError:raise VaultError("服务连接凭据无效。") from None
+            continue
         if name not in ("glm","sub2api","newapi","kimi") or not isinstance(record,dict):raise VaultError("连接文件包含不支持的连接类型。")
         allowed={"kimi":{"key","sealed"},"glm":{"site","key","sealed"},
                  "sub2api":{"url","email","password","access_token","refresh_token","user","sealed","cached"},
@@ -43,7 +50,6 @@ def validate(data):
             item[k]=copy.deepcopy(v)
         item["sealed"]=bool(item.get("sealed"))
         if name=="kimi":
-            import quota
             try:item["key"]=quota.validate_key(item.get("key",""))
             except quota.QueryError:raise VaultError("Kimi 连接信息不完整或 Key 无效。") from None
         if name=="glm" and (item.get("site") not in ("cn","global") or not item.get("key")):
@@ -106,7 +112,7 @@ def exportable(data):
     result=validate(data)
     result["profiles"]={k:v for k,v in result["profiles"].items() if not v.get("sealed")}
     if not result["profiles"]:raise VaultError("没有可导出的自有连接。导入的连接只能查询，不能再次导出。")
-    active={0:"glm",1:"sub2api",2:"kimi"}
+    active={0:"glm",1:"sub2api",2:"kimi",**{s:p["id"] for s,p in service_providers.BY_SOURCE.items()}}
     if active[result["source"]] not in result["profiles"]:
         result["source"]=next((source for source,name in active.items() if name in result["profiles"]),0)
     return result

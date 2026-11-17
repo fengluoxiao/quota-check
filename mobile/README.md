@@ -68,3 +68,9 @@ iOS 本地编译需要 Mac 和 Xcode 27。Windows 可以运行类型检查、协
 ## Kimi Coding Plan
 
 顶部选择 Kimi，在设置中输入 Kimi Code 套餐 Key。查询周额度及接口返回的全部周期额度；Key 使用现有 Keychain / 设备加密存储，支持跨平台 .sqv 导入导出。普通 Moonshot API 余额 Key 不适用。Windows 和移动端使用相同协议测试样例，缺失字段不会补成虚假的可用额度。
+
+## 多服务（v1.5.0）
+
+原生服务列表新增 Claude Code、阿里 Token / Coding Plan、方舟 Agent Plan 个人版、MiMo Token Plan / 余额、讯飞星火 Coding Plan、Astron Token Plan 和 DeepSeek 余额。各服务所需凭据见 ../PROVIDERS.md；余额单独标注，不显示订阅进度条。
+
+模拟器 CI 在全新空配置上检查 Keychain、CryptoKit SHA/HMAC、加密存储及全部服务的空白原生表单；不填入模拟额度。发布工作流勾选 release 后，同时在 Windows runner 构建并检查 EXE，待 Windows 与 macOS 27 的 iOS 检查都通过后发布。

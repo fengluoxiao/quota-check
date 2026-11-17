@@ -2,11 +2,33 @@ name: iOS native build (macOS 27)
 on:
   push:
     branches: [main]
-    paths: ['mobile/**', '.github/workflows/ios.yml', 'vault.py', 'settings.py', 'kimi.py', 'tests/fixtures/**']
+    paths:
+      [
+        "mobile/**",
+        ".github/workflows/ios.yml",
+        "vault.py",
+        "settings.py",
+        "kimi.py",
+        "service_providers.py",
+        "tests/fixtures/**",
+      ]
   pull_request:
-    paths: ['mobile/**', '.github/workflows/ios.yml', 'vault.py', 'settings.py', 'kimi.py', 'tests/fixtures/**']
+    paths:
+      [
+        "mobile/**",
+        ".github/workflows/ios.yml",
+        "vault.py",
+        "settings.py",
+        "kimi.py",
+        "service_providers.py",
+        "tests/fixtures/**",
+      ]
   workflow_dispatch:
     inputs:
+      release:
+        description: Publish verified Windows and iOS release packages
+        type: boolean
+        default: false
       signing:
         description: iOS signing mode
         type: choice
@@ -32,8 +54,8 @@ jobs:
     runs-on: xcode-27
     timeout-minutes: 90
     env:
-      CI: '1'
-      EXPO_NO_TELEMETRY: '1'
+      CI: "1"
+      EXPO_NO_TELEMETRY: "1"
       IOS_BUNDLE_IDENTIFIER: ${{ vars.IOS_BUNDLE_IDENTIFIER || 'com.fengluoxiao.quotacheck' }}
       IOS_BUILD_NUMBER: ${{ github.run_number }}
     steps:
@@ -46,7 +68,7 @@ jobs:
           case "$(sw_vers -productVersion)" in 27.*) ;; *) exit 1 ;; esac
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
+          node-version: "24"
       - name: Install pinned package manager
         run: npm install --global pnpm@11.25.0
       - name: Install mobile dependencies
@@ -78,8 +100,8 @@ jobs:
       - name: Build iPhone device IPA
         env:
           IOS_SIGNING_MODE: ${{ inputs.signing || 'unsigned' }}
-          IOS_BUILD_DEVICE: 'true'
-          IOS_BUILD_SIMULATOR: 'false'
+          IOS_BUILD_DEVICE: "true"
+          IOS_BUILD_SIMULATOR: "false"
           IOS_EXPORT_METHOD: ${{ inputs.export_method || 'release-testing' }}
           IOS_TEAM_ID: ${{ inputs.signing == 'signed' && secrets.IOS_TEAM_ID || '' }}
         run: bash mobile/scripts/build-ios.sh
@@ -95,8 +117,8 @@ jobs:
       - name: Build and test iOS 27 simulator
         if: github.event_name != 'workflow_dispatch' || inputs.simulator
         env:
-          IOS_BUILD_DEVICE: 'false'
-          IOS_BUILD_SIMULATOR: 'true'
+          IOS_BUILD_DEVICE: "false"
+          IOS_BUILD_SIMULATOR: "true"
         run: bash mobile/scripts/build-ios.sh
       - name: Upload iOS packages, checksums and native screenshot
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -115,3 +137,64 @@ jobs:
       - name: Remove temporary signing keychain
         if: always() && env.IOS_SIGNING_KEYCHAIN != ''
         run: security delete-keychain "$IOS_SIGNING_KEYCHAIN"
+
+  windows:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Install desktop dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Test desktop protocols and encrypted files
+        run: python -m unittest discover -s tests -v
+      - name: Build Windows x64 EXE
+        run: |
+          New-Item -ItemType Directory -Force -Path build/windows | Out-Null
+          python -m PyInstaller --noconfirm --clean --distpath build/windows/dist --workpath build/windows/work GLMQuota.spec *> build/windows/pyinstaller.log
+          if ($LASTEXITCODE -ne 0) { Get-Content build/windows/pyinstaller.log -Tail 60; exit $LASTEXITCODE }
+      - name: Verify packaged native UI and credential protection for every service
+        run: |
+          $quotaExe = @(Get-ChildItem -LiteralPath build/windows/dist -Filter '*.exe')
+          if ($quotaExe.Count -ne 1) { throw 'Expected one desktop executable' }
+          python scripts/check_windows.py $quotaExe[0].FullName build/windows/dist
+      - name: Upload Windows package and native reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: quota-check-windows-${{ github.run_number }}
+          path: build/windows/dist/*
+          if-no-files-found: warn
+          retention-days: 14
+
+  publish:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}
+    needs: [ios, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: quota-check-ios-${{ github.run_number }}
+          path: build/release/ios
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: quota-check-windows-${{ github.run_number }}
+          path: build/release/windows
+      - name: Publish verified Windows stable and iOS preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/publish_release.py build/release
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: quota-check-publication-${{ github.run_number }}
+          path: build/release/publication.json

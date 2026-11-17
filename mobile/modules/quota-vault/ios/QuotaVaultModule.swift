@@ -9,6 +9,8 @@ public class QuotaVaultModule: Module {
   }
   public func definition() -> ModuleDefinition {
     Name("QuotaVault")
+    Function("sha256") { (text: String) throws -> String in try NativeHashCodec.sha256(text) }
+    Function("hmacSHA256") { (keyHex: String, text: String) throws -> String in try NativeHashCodec.hmacSHA256(keyHex, text) }
     Function("generateKey") { () throws -> String in try NativeVaultCodec.random(32).base64EncodedString() }
     AsyncFunction("seal") { (plaintext: String, mode: Int, secret: String) throws -> String in
       guard mode == 1 || mode == 2 else { throw VaultFailure.unsupported }

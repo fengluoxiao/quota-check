@@ -1,4 +1,12 @@
-export type Provider = 0 | 1 | 2;
+import {
+  SERVICES,
+  ServiceId,
+  ServiceProfile,
+  serviceForId,
+  serviceForSource,
+  validateService,
+} from './serviceCatalog';
+export type Provider = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
 export interface KimiProfile {
   key: string;
   sealed: boolean;
@@ -33,7 +41,12 @@ export interface NewProfile {
 export interface VaultData {
   version: 1;
   source: Provider;
-  profiles: { glm?: GlmProfile; sub2api?: SubProfile; newapi?: NewProfile; kimi?: KimiProfile };
+  profiles: {
+    glm?: GlmProfile;
+    sub2api?: SubProfile;
+    newapi?: NewProfile;
+    kimi?: KimiProfile;
+  } & Partial<Record<ServiceId, ServiceProfile>>;
 }
 export interface Account {
   id: number;
@@ -56,6 +69,7 @@ export interface AccountCard {
   windows: UsageWindow[];
   error?: string;
   cached?: boolean;
+  kind?: 'quota' | 'balance';
 }
 export type Json = Record<string, unknown>;
 export const freshVault = (): VaultData => ({ version: 1, source: 0, profiles: {} });
@@ -93,8 +107,19 @@ export function validateVault(value: unknown): VaultData {
   if (!isRecord(value) || value.version !== 1 || !isRecord(value.profiles))
     throw new Error('连接文件格式不受支持。');
   const out = freshVault();
-  out.source = value.source === 2 ? 2 : value.source === 1 ? 1 : 0;
+  out.source =
+    typeof value.source === 'number' &&
+    Number.isInteger(value.source) &&
+    value.source >= 0 &&
+    value.source <= 11
+      ? (value.source as Provider)
+      : 0;
   for (const [name, raw] of Object.entries(value.profiles)) {
+    const service = serviceForId(name);
+    if (service) {
+      out.profiles[service.id] = validateService(service.id, raw);
+      continue;
+    }
     if (!isRecord(raw)) throw new Error('连接信息格式无效。');
     const allowed: Record<string, string[]> = {
       kimi: ['key', 'sealed'],
@@ -174,11 +199,21 @@ export function lockImported(value: unknown): VaultData {
 }
 export function exportOwned(value: VaultData): VaultData {
   const v = validateVault(value);
-  for (const k of ['glm', 'sub2api', 'newapi', 'kimi'] as const)
+  for (const k of Object.keys(v.profiles) as (keyof VaultData['profiles'])[])
     if (v.profiles[k]?.sealed) delete v.profiles[k];
   if (!Object.keys(v.profiles).length) throw new Error('导入连接只能查询，不能再次导出。');
-  if ((v.source === 1 && !v.profiles.sub2api) || (v.source === 2 && !v.profiles.kimi))
-    v.source = v.profiles.kimi ? 2 : v.profiles.sub2api ? 1 : 0;
+  const active =
+    serviceForSource(v.source)?.id ??
+    (v.source === 1 ? 'sub2api' : v.source === 2 ? 'kimi' : 'glm');
+  if (!v.profiles[active]) {
+    const found = [
+      { source: 0, id: 'glm' },
+      { source: 1, id: 'sub2api' },
+      { source: 2, id: 'kimi' },
+      ...SERVICES,
+    ].find((s) => v.profiles[s.id as keyof VaultData['profiles']]);
+    v.source = (found?.source ?? 0) as Provider;
+  }
   return v;
 }
 export function formatTime(value: unknown): string {

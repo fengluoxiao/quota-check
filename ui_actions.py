@@ -10,6 +10,7 @@ import file_dialogs
 import newapi
 import quota
 import kimi
+import service_providers
 import sub2api
 import vault
 
@@ -20,18 +21,21 @@ class VaultActions:
         self.candidate_key=""
         self.candidate_sealed=False
         self.last_bulk=[]
+        self.service_source=None
         try:self.vault_data=vault.fresh() if test_mode else vault.load_local()
         except vault.VaultError as exc:
             self.vault_data=vault.fresh();self.vault_load_error=str(exc)
 
     def profile(self,name):return self.vault_data["profiles"].get(name,{})
     def private_view(self):
+        spec=service_providers.BY_SOURCE.get(self.Source.SelectedIndex)
+        if spec:return bool(self.profile(spec["id"]).get("sealed"))
         if self.Source.SelectedIndex==2:return bool(self.profile("kimi").get("sealed"))
         if self.Source.SelectedIndex==1:return bool(self.profile("sub2api").get("sealed"))
         return bool(self.profile("glm").get("sealed") or self.profile("newapi").get("sealed") or self.candidate_sealed)
 
     def persist(self):
-        self.vault_data["source"]=self.Source.SelectedIndex if self.Source.SelectedIndex in (0,1,2) else 0
+        self.vault_data["source"]=self.Source.SelectedIndex if self.Source.SelectedIndex in range(12) else 0
         if self.vault_load_error:raise vault.VaultError("本机保存的连接无法解密；请导入有效备份或点击更换连接后重新设置。")
         if not self.vault_test_mode:vault.save_local(self.vault_data)
 
@@ -67,27 +71,47 @@ class VaultActions:
         self.KimiKey.IsEnabled=not self.busy and not bool(k)
         self.KimiQuery.IsEnabled=not self.busy
         self.SubQuery.IsEnabled=not self.busy
+        spec=service_providers.BY_SOURCE.get(self.Source.SelectedIndex)
+        if spec:
+            record=self.profile(spec["id"])
+            if self.service_source!=self.Source.SelectedIndex:
+                for control in (self.ServiceKey,self.ServiceSecret,self.ServiceSession):control.Password=""
+            self.service_source=self.Source.SelectedIndex
+            self.ServiceLabel.Text=spec["label"];self.ServiceDescription.Text=spec["help"]
+            controls={"secret":self.ServiceKey,"secret2":self.ServiceSecret,"session_token":self.ServiceSession}
+            for control in controls.values():control.Visibility=Visibility.Collapsed
+            for field in spec["fields"]:
+                control=controls[field["key"]];control.Header=field["label"];control.Visibility=Visibility.Visible
+                control.IsEnabled=not self.busy and not bool(record)
+                if record:control.Password=""
+                control.PlaceholderText="凭据已加密保存，不回填明文" if record else "首次填写，成功后加密保存"
         self.SaveFile.IsEnabled=not self.busy and not self.private_view()
 
     def Source_Changed(self,sender,e):
         if getattr(self,"initializing",True):return
         from win32more.Microsoft.UI.Xaml import Visibility
+        spec=service_providers.BY_SOURCE.get(self.Source.SelectedIndex)
+        if self.service_source!=self.Source.SelectedIndex:
+            for control in (self.ServiceKey,self.ServiceSecret,self.ServiceSession):control.Password=""
+        self.service_source=self.Source.SelectedIndex
         is_sub=self.Source.SelectedIndex==1
         is_kimi=self.Source.SelectedIndex==2
-        self.GlmPanel.Visibility=Visibility.Collapsed if is_sub or is_kimi else Visibility.Visible
+        self.GlmPanel.Visibility=Visibility.Collapsed if is_sub or is_kimi or spec else Visibility.Visible
+        self.ServicePanel.Visibility=Visibility.Visible if spec else Visibility.Collapsed
         self.KimiPanel.Visibility=Visibility.Visible if is_kimi else Visibility.Collapsed
-        self.NewAPIExpander.Visibility=Visibility.Collapsed if is_sub or is_kimi else Visibility.Visible
+        self.NewAPIExpander.Visibility=Visibility.Collapsed if is_sub or is_kimi or spec else Visibility.Visible
         self.SubPanel.Visibility=Visibility.Visible if is_sub else Visibility.Collapsed
         self.clear_results()
         self.ResultsTitle.Text="Kimi Coding Plan 额度" if is_kimi else ("全部 GPT / Codex 账号" if is_sub else "GLM Coding Plan 额度")
         self.Footnote.Text=("每张卡片对应一个 GPT 账号；数据时间与后台快照会单独标注。" if is_sub else "额度按接口实际返回展示。Key 在本机加密保存，输入框不回填明文。")
         self.restore_fields()
+        if spec:self.ResultsTitle.Text=spec["label"];self.Footnote.Text="按真实接口返回展示；余额不换算为套餐百分比。凭据加密保存，不回填明文。"
         self.message("准备就绪","点击查询全部 GPT 账号。" if is_sub and self.profile("sub2api") else ("首次填写 sub2api 登录信息后，点击查询全部账号。" if is_sub else "输入 Key 后查询；保存过的连接可直接查询。"))
 
     def set_busy(self,busy):
         from win32more.Microsoft.UI.Xaml import Visibility
         self.busy=busy
-        for name in ("Query","Site","Key","KimiQuery","KimiKey","NewURL","NewUsername","NewPassword","LoginCode","ReadCode","LoginButton","Channels","ImportedKeys","Turnstile","Source","SubURL","SubEmail","SubPassword","SubCode","SubCaptcha","SubLogin","SubAccounts","SubMode","ImportFile","SaveFile","ResetConnection"):
+        for name in ("Query","Site","Key","KimiQuery","KimiKey","ServiceKey","ServiceSecret","ServiceSession","ServiceQuery","NewURL","NewUsername","NewPassword","LoginCode","ReadCode","LoginButton","Channels","ImportedKeys","Turnstile","Source","SubURL","SubEmail","SubPassword","SubCode","SubCaptcha","SubLogin","SubAccounts","SubMode","ImportFile","SaveFile","ResetConnection"):
             getattr(self,name).IsEnabled=not busy
         self.ImportButton.IsEnabled=not busy and bool(self.newapi_client and self.channel_rows)
         self.SubQuery.IsEnabled=not busy
@@ -98,11 +122,12 @@ class VaultActions:
 
     def ResetConnection_Click(self,sender,e):
         if self.busy:return
-        names=("kimi",) if self.Source.SelectedIndex==2 else (("sub2api",) if self.Source.SelectedIndex==1 else ("glm","newapi"))
+        spec=service_providers.BY_SOURCE.get(self.Source.SelectedIndex)
+        names=(spec["id"],) if spec else ("kimi",) if self.Source.SelectedIndex==2 else (("sub2api",) if self.Source.SelectedIndex==1 else ("glm","newapi"))
         for name in names:self.vault_data["profiles"].pop(name,None)
         self.vault_load_error="";self.sub_client=None;self.newapi_client=None
         self.candidate_key="";self.candidate_sealed=False;self.sub_accounts=[]
-        for control in (self.Key,self.KimiKey,self.SubPassword,self.NewPassword,self.SubCode):control.Password=""
+        for control in (self.Key,self.KimiKey,self.ServiceKey,self.ServiceSecret,self.ServiceSession,self.SubPassword,self.NewPassword,self.SubCode):control.Password=""
         for control in (self.SubEmail,self.SubURL,self.NewUsername,self.NewURL):control.Text=""
         try:self.persist()
         except (vault.VaultError,OSError):self.message("设置未保存","清除连接设置失败，请检查本机数据目录权限。","Error");return
@@ -294,6 +319,36 @@ class VaultActions:
         except Exception as exc:self.clear_results();self.message("程序出错","内部异常（"+diagnostics.record("kimi-query",exc)+"）。","Error")
         finally:self.set_busy(False)
 
+    def service_values(self):
+        spec=service_providers.BY_SOURCE.get(self.Source.SelectedIndex)
+        if not spec:raise quota.QueryError("请先选择服务。")
+        saved=self.profile(spec["id"])
+        if saved:return spec,saved
+        controls={"secret":self.ServiceKey,"secret2":self.ServiceSecret,"session_token":self.ServiceSession}
+        record={field["key"]:controls[field["key"]].Password for field in spec["fields"]}
+        record["sealed"]=False
+        return spec,service_providers.validate_profile(spec["id"],record)
+
+    async def ServiceQuery_Click(self,sender,e):
+        if self.busy:return
+        try:spec,record=self.service_values()
+        except quota.QueryError as exc:self.message("请检查访问凭据",str(exc),"Warning");return
+        self.clear_results();self.set_busy(True);self.message("正在查询",spec["label"]+" · 正在读取真实数据。")
+        try:
+            payload=await asyncio.to_thread(service_providers.fetch_usage,spec["id"],record)
+            cards=payload["cards"]
+            if spec["kind"]=="balance":
+                for card in cards:card["kind"]="balance"
+            self.render_cards(cards,payload)
+            self.Updated.Text="更新于 "+datetime.now().strftime("%H:%M:%S")
+            self.vault_data["profiles"][spec["id"]]=copy.deepcopy(record)
+            self.persist();self.restore_fields()
+            self.message("查询成功",spec["label"]+" · 凭据已加密保存。","Success")
+        except quota.QueryError as exc:self.message("查询失败",str(exc),"Error")
+        except (vault.VaultError,OSError):self.message("连接保存失败","无法加密保存连接，请检查数据目录权限。","Error")
+        except Exception as exc:self.clear_results();self.message("程序出错","内部异常（"+diagnostics.record("service-query",exc)+"）。","Error")
+        finally:self.set_busy(False)
+
     def collect_owned(self):
         data=copy.deepcopy(self.vault_data)
         if not self.private_view():
@@ -302,6 +357,8 @@ class VaultActions:
                 if key:data["profiles"]["glm"]={"site":"global" if self.Site.SelectedIndex==1 else "cn","key":quota.validate_key(key),"sealed":False}
             elif self.Source.SelectedIndex==2:
                 if self.KimiKey.Password:data["profiles"]["kimi"]={"key":quota.validate_key(self.KimiKey.Password),"sealed":False}
+            elif self.Source.SelectedIndex in service_providers.BY_SOURCE:
+                spec,record=self.service_values();data["profiles"][spec["id"]]=copy.deepcopy(record)
             elif self.SubEmail.Text.strip() and self.SubPassword.Password:
                 data["profiles"]["sub2api"]={"url":sub2api.normalize_url(self.SubURL.Text),"email":self.SubEmail.Text.strip(),"password":self.SubPassword.Password,"sealed":False,"cached":self.SubMode.SelectedIndex==1}
         data["source"]=self.Source.SelectedIndex

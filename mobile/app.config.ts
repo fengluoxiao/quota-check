@@ -3,7 +3,7 @@ const config: ExpoConfig = {
   name: 'QuotaCheck',
   extra: { nativeSmokeCheck: process.env.NATIVE_SMOKE_CHECK === '1' },
   slug: 'quota-check',
-  version: '1.4.0',
+  version: '1.5.0',
   scheme: 'quota-check',
   orientation: 'default',
   userInterfaceStyle: 'automatic',
@@ -11,7 +11,7 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: process.env.IOS_BUNDLE_IDENTIFIER || 'com.fengluoxiao.quotacheck',
-    buildNumber: process.env.IOS_BUILD_NUMBER || '14',
+    buildNumber: process.env.IOS_BUILD_NUMBER || '15',
     infoPlist: {
       CFBundleDisplayName: '额度查询',
       ITSAppUsesNonExemptEncryption: true,
@@ -37,7 +37,7 @@ const config: ExpoConfig = {
       ],
     },
   },
-  android: { package: 'com.fengluoxiao.quotacheck', versionCode: 14, permissions: ['INTERNET'] },
+  android: { package: 'com.fengluoxiao.quotacheck', versionCode: 15, permissions: ['INTERNET'] },
   plugins: [
     ['expo-secure-store', { configureAndroidBackup: true }],
     ['expo-file-system', { enableFileSharing: false, supportsOpeningDocumentsInPlace: false }],

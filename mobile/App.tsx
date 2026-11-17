@@ -40,6 +40,8 @@ import {
 } from './src/models';
 import { NeedsOTP, SubClient, queryAll, queryGLM } from './src/api';
 import { queryKIMI } from './src/kimi';
+import { SERVICES, ServiceProfile, serviceForSource, validateService } from './src/serviceCatalog';
+import { queryService } from './src/providers';
 import { clearVault, loadVault, nativeTransport, saveVault } from './src/storage';
 import { fileMode, fromBase64, toBase64 } from './src/encoding';
 
@@ -123,7 +125,11 @@ function WindowCard({ card, colors }: { card: AccountCard; colors: Colors }) {
                 { color: w.remaining !== null && w.remaining <= 10 ? colors.danger : colors.ink },
               ]}
             >
-              {w.remaining === null ? '未提供使用比例' : '剩余 ' + w.remaining.toFixed(1) + '%'}
+              {w.remaining === null
+                ? card.kind === 'balance'
+                  ? '账户余额'
+                  : '未提供使用比例'
+                : '剩余 ' + w.remaining.toFixed(1) + '%'}
               <Text style={[styles.used, { color: colors.muted }]}>
                 {w.used === null ? '' : '  已用 ' + w.used.toFixed(1) + '%'}
               </Text>
@@ -192,6 +198,8 @@ function Screen() {
   const [cards, setCards] = useState<AccountCard[]>([]);
   const [notice, setNotice] = useState('首次添加连接或导入加密文件，然后点击查询。');
   const [settings, setSettings] = useState(false);
+  const [servicesOpen, setServicesOpen] = useState(false);
+  const [serviceForm, setServiceForm] = useState({ secret: '', secret2: '', session_token: '' });
   const [needsOTP, setNeedsOTP] = useState(false);
   const [form, setForm] = useState({
     key: '',
@@ -210,8 +218,10 @@ function Screen() {
   const [fileConfirm, setFileConfirm] = useState('');
   const [fileError, setFileError] = useState('');
   const clientRef = useRef<SubClient | null>(null);
-  const active =
-    data.source === 2
+  const serviceSpec = serviceForSource(data.source);
+  const active = serviceSpec
+    ? data.profiles[serviceSpec.id]
+    : data.source === 2
       ? data.profiles.kimi
       : data.source === 1
         ? data.profiles.sub2api
@@ -304,6 +314,15 @@ function Screen() {
       await SecureStore.setItemAsync(probe, secret, options);
       if ((await SecureStore.getItemAsync(probe, options)) !== secret) throw new Error('keychain');
       report.keychain = true;
+      report.stage = 'native-signing';
+      if (
+        Native.sha256('quota-check') !==
+          'd80211816271a3ca9c788e8be5c52c0e62c76b85f8eea3564d2860846641a928' ||
+        Native.hmacSHA256('74657374', 'quota-check') !==
+          '3792c792c75b5f8ca269a1a30c792c850f815b9cb2701a671a46c1401fa732db'
+      )
+        throw new Error('signing');
+      report.signing = true;
       report.stage = 'native-crypto';
       const plain = JSON.stringify(freshVault());
       const device = await Native.seal(plain, 2, secret);
@@ -316,6 +335,18 @@ function Screen() {
       wroteStore = true;
       if (Native.readStorage() !== device) throw new Error('storage');
       report.storage = true;
+      report.stage = 'native-provider-ui';
+      for (const spec of SERVICES) {
+        const empty = { ...freshVault(), source: spec.source as Provider };
+        dataRef.current = empty;
+        setData(empty);
+        setSettings(true);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      dataRef.current = freshVault();
+      setData(dataRef.current);
+      setSettings(false);
+      report.providerUI = SERVICES.length;
       report.ok = true;
       report.stage = 'complete';
     } catch {
@@ -334,7 +365,9 @@ function Screen() {
   }
   async function switchSource(source: Provider) {
     if (busyRef.current) return;
+    setBusy(true);
     const next = { ...dataRef.current, source };
+    setServiceForm({ secret: '', secret2: '', session_token: '' });
     setForm({
       key: '',
       site: 'cn',
@@ -357,6 +390,7 @@ function Screen() {
       } catch {
         setNotice('服务已切换，但本机设置未能保存。');
       }
+    setBusy(false);
   }
   async function runQuery(candidate?: VaultData) {
     if (busyRef.current) return false;
@@ -365,8 +399,10 @@ function Screen() {
       return false;
     }
     const next: VaultData = JSON.parse(JSON.stringify(candidate ?? dataRef.current)) as VaultData;
-    const profile =
-      next.source === 2
+    const service = serviceForSource(next.source);
+    const profile = service
+      ? next.profiles[service.id]
+      : next.source === 2
         ? next.profiles.kimi
         : next.source === 1
           ? next.profiles.sub2api
@@ -378,14 +414,26 @@ function Screen() {
     setBusy(true);
     setCards([]);
     setNotice(
-      next.source === 2
-        ? '正在查询 Kimi Coding Plan……'
-        : next.source === 1
-          ? '正在连接 sub2api，读取全部 GPT 账号……'
-          : '正在查询 GLM Coding Plan……',
+      service
+        ? '正在读取：' + service.label + '……'
+        : next.source === 2
+          ? '正在查询 Kimi Coding Plan……'
+          : next.source === 1
+            ? '正在连接 sub2api，读取全部 GPT 账号……'
+            : '正在查询 GLM Coding Plan……',
     );
     try {
-      if (next.source !== 1) {
+      if (service) {
+        const result = await queryService(
+          service.id,
+          next.profiles[service.id]!,
+          nativeTransport,
+          Native,
+        );
+        await commit(next);
+        setCards(result);
+        setNotice('查询成功 · 凭据已在本机加密保存。');
+      } else if (next.source !== 1) {
         const result =
           next.source === 2
             ? await queryKIMI(next.profiles.kimi!, nativeTransport)
@@ -426,6 +474,7 @@ function Screen() {
         );
       }
       setForm((v) => ({ ...v, key: '', email: '', password: '', otp: '', captcha: '' }));
+      setServiceForm({ secret: '', secret2: '', session_token: '' });
       return true;
     } catch (e) {
       if (e instanceof NeedsOTP) {
@@ -445,7 +494,14 @@ function Screen() {
   async function saveForm() {
     try {
       const next: VaultData = JSON.parse(JSON.stringify(dataRef.current)) as VaultData;
-      if (next.source === 0) {
+      const service = serviceForSource(next.source);
+      if (service) {
+        if (!next.profiles[service.id])
+          next.profiles[service.id] = validateService(service.id, {
+            ...Object.fromEntries(service.fields.map((f) => [f.key, serviceForm[f.key]])),
+            sealed: false,
+          });
+      } else if (next.source === 0) {
         if (!next.profiles.glm)
           next.profiles.glm = { site: form.site, key: validateKey(form.key), sealed: false };
       } else if (next.source === 2) {
@@ -485,7 +541,9 @@ function Screen() {
                 setBlocked(false);
               } else {
                 const next: VaultData = JSON.parse(JSON.stringify(dataRef.current)) as VaultData;
-                if (next.source === 2) delete next.profiles.kimi;
+                const service = serviceForSource(next.source);
+                if (service) delete next.profiles[service.id];
+                else if (next.source === 2) delete next.profiles.kimi;
                 else if (next.source === 1) delete next.profiles.sub2api;
                 else {
                   delete next.profiles.glm;
@@ -494,6 +552,7 @@ function Screen() {
                 await commit(next);
               }
               clientRef.current = null;
+              setServiceForm({ secret: '', secret2: '', session_token: '' });
               setCards([]);
               setNeedsOTP(false);
               setForm({
@@ -576,6 +635,7 @@ function Screen() {
           captcha: '',
           cached: false,
         });
+        setServiceForm({ secret: '', secret2: '', session_token: '' });
         setNotice('连接已导入并隐藏凭据，点击查询即可。');
       } else {
         const own = exportOwned(dataRef.current);
@@ -607,11 +667,13 @@ function Screen() {
   const formUI = (
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.formContent}>
       <Text style={[styles.sectionTitle, { color: colors.ink }]}>
-        {data.source === 2
-          ? 'Kimi Coding Plan'
-          : data.source === 1
-            ? '连接 sub2api'
-            : 'GLM Coding Plan'}
+        {serviceSpec
+          ? serviceSpec.label
+          : data.source === 2
+            ? 'Kimi Coding Plan'
+            : data.source === 1
+              ? '连接 sub2api'
+              : 'GLM Coding Plan'}
       </Text>
       {!!active && (
         <View style={[styles.saved, { backgroundColor: colors.soft }]}>
@@ -620,7 +682,31 @@ function Screen() {
           </Text>
         </View>
       )}
-      {data.source !== 1 ? (
+      {serviceSpec ? (
+        <>
+          <Text style={{ color: colors.muted }}>{serviceSpec.help}</Text>
+          {serviceSpec.fields.map((field) => (
+            <Field
+              key={field.key}
+              colors={colors}
+              label={field.label}
+              secureTextEntry
+              textContentType="none"
+              value={active ? '' : serviceForm[field.key]}
+              editable={!active && !busy}
+              maxLength={32768}
+              placeholder={
+                active
+                  ? '凭据已加密保存，不回填明文'
+                  : field.required
+                    ? '首次填写，成功后加密保存'
+                    : '可选'
+              }
+              onChangeText={(value) => setServiceForm((v) => ({ ...v, [field.key]: value }))}
+            />
+          ))}
+        </>
+      ) : data.source !== 1 ? (
         <>
           {data.source === 0 && (
             <View style={styles.segment}>
@@ -745,7 +831,9 @@ function Screen() {
               ? '查询 Kimi 额度'
               : data.source === 1
                 ? '查询全部 GPT 账号'
-                : '查询 GLM 额度'
+                : serviceSpec
+                  ? '查询当前服务'
+                  : '查询 GLM 额度'
         }
         onPress={() => {
           void saveForm();
@@ -789,7 +877,7 @@ function Screen() {
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.appTitle, { color: colors.ink }]}>额度查询</Text>
-          <Text style={{ color: colors.muted }}>GLM · Kimi · GPT / Codex</Text>
+          <Text style={{ color: colors.muted }}>GLM · Kimi · Claude · 多服务</Text>
         </View>
         <Pressable
           accessibilityRole="button"
@@ -818,30 +906,96 @@ function Screen() {
           </Pressable>
         )}
       </View>
-      <View style={[styles.segment, { marginHorizontal: 20, backgroundColor: colors.card }]}>
-        {([0, 1, 2] as const).map((source) => (
-          <Pressable
-            key={source}
-            accessibilityRole="button"
-            accessibilityState={{ selected: data.source === source }}
-            disabled={busy || loading}
-            onPress={() => void switchSource(source)}
-            style={[
-              styles.segmentItem,
-              { backgroundColor: data.source === source ? colors.soft : colors.card },
-            ]}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="选择查询服务"
+        disabled={busy || loading}
+        onPress={() => setServicesOpen(true)}
+        style={{
+          marginHorizontal: 20,
+          marginBottom: 12,
+          padding: 16,
+          borderRadius: 14,
+          backgroundColor: colors.card,
+        }}
+      >
+        <Text style={{ color: colors.accent, fontSize: 16, fontWeight: '600' }} numberOfLines={2}>
+          服务 ·{' '}
+          {serviceSpec?.label ??
+            (data.source === 2
+              ? 'Kimi Coding Plan'
+              : data.source === 1
+                ? 'GPT / Codex · sub2api'
+                : 'GLM Coding Plan')}{' '}
+          ▾
+        </Text>
+      </Pressable>
+      <Modal
+        visible={servicesOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setServicesOpen(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: '#0006',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 20,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: colors.card,
+              borderRadius: 20,
+              width: '100%',
+              maxWidth: 520,
+              maxHeight: '85%',
+              padding: 20,
+            }}
           >
-            <Text
-              style={{
-                color: data.source === source ? colors.accent : colors.muted,
-                fontWeight: '600',
-              }}
-            >
-              {source === 2 ? 'Kimi' : source === 0 ? 'GLM' : 'GPT · sub2api'}
+            <Text style={[styles.sectionTitle, { color: colors.ink, marginBottom: 12 }]}>
+              选择查询服务
             </Text>
-          </Pressable>
-        ))}
-      </View>
+            <ScrollView>
+              {[
+                { source: 0, label: 'GLM Coding Plan' },
+                { source: 1, label: 'GPT / Codex · sub2api' },
+                { source: 2, label: 'Kimi Coding Plan' },
+                ...SERVICES,
+              ].map((spec) => (
+                <Pressable
+                  key={spec.source}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: data.source === spec.source }}
+                  onPress={() => {
+                    setServicesOpen(false);
+                    void switchSource(spec.source as Provider);
+                  }}
+                  style={{
+                    paddingVertical: 16,
+                    paddingHorizontal: 12,
+                    borderRadius: 10,
+                    backgroundColor: data.source === spec.source ? colors.soft : colors.card,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: data.source === spec.source ? colors.accent : colors.ink,
+                      fontSize: 16,
+                    }}
+                  >
+                    {spec.label}
+                    {data.source === spec.source ? '  ✓' : ''}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Button title="关闭" secondary colors={colors} onPress={() => setServicesOpen(false)} />
+          </View>
+        </View>
+      </Modal>
       <View style={[styles.body, wide && styles.wideBody]}>
         {wide && (
           <View
@@ -863,7 +1017,7 @@ function Screen() {
             ListEmptyComponent={
               !loading ? (
                 <View style={styles.empty}>
-                  <Text style={[styles.emptyTitle, { color: colors.ink }]}>查询你的订阅额度</Text>
+                  <Text style={[styles.emptyTitle, { color: colors.ink }]}>查询你的额度与余额</Text>
                   <Text style={[styles.emptyText, { color: colors.muted }]}>
                     添加一次连接后，点击查询即可。GPT 后台有多少账号，就显示多少张卡片。
                   </Text>
