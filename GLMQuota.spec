@@ -18,7 +18,7 @@ binaries = [(s,d) for s,d in binaries if not any(x in s.replace('\\','/').lower(
 a = Analysis([str(base / 'app.py')], pathex=[str(base)], binaries=binaries, datas=datas,
     hiddenimports=hiddenimports, hookspath=[], hooksconfig={}, runtime_hooks=[], excludes=['tkinter','unittest','pytest'], noarchive=False)
 pyz = PYZ(a.pure)
-exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name='SubscriptionQuota-v1.5.2', debug=False,
+exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name='SubscriptionQuota-v1.5.3', debug=False,
     bootloader_ignore_signals=False, strip=False, upx=False, console=False,
     icon=str(base / 'app.ico') if (base / 'app.ico').exists() else None,
     version=str(base / 'version.txt'), uac_admin=False)

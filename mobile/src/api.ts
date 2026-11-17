@@ -50,18 +50,29 @@ export function resetCreditCard(payload: unknown): UsageWindow {
   )
     throw new Error('当前 sub2api / 上游响应没有返回重置卡次数。');
   const details = ['可用重置卡次数：' + credits.available_count.toLocaleString('en-US')];
-  if (Array.isArray(credits.credits))
-    for (const grant of credits.credits)
-      if (isRecord(grant) && grant.expires_at) {
-        const time = formatTime(grant.expires_at);
-        if (time) details.push('其中一张到期：' + time);
-      }
+  const expandedLines: string[] = [];
+  if (Array.isArray(credits.credits)) {
+    details.push('接口返回到期明细：' + credits.credits.length.toLocaleString('en-US') + ' 条');
+    credits.credits.forEach((grant, index) => {
+      const time = isRecord(grant) && grant.expires_at ? formatTime(grant.expires_at) : '';
+      expandedLines.push(
+        '#' + (index + 1) + ' · ' + (time ? '到期：' + time : '接口未返回到期时间'),
+      );
+    });
+    if (credits.available_count !== credits.credits.length)
+      details.push('接口计数与明细条数不同；仅展示返回明细，不推算差额。');
+    if (credits.credits.length > 5) details.push('明细较多，展开查看。');
+  } else details.push('接口未返回到期明细，无法核对每张卡。');
   return {
     title: '重置卡次数',
     used: null,
     remaining: null,
     reset: '',
     detail: details.join('\n'),
+    expandedTitle: expandedLines.length
+      ? '查看 ' + expandedLines.length + ' 条重置卡明细'
+      : undefined,
+    expandedLines: expandedLines.length ? expandedLines : undefined,
   };
 }
 export function codexCreditCard(payload: unknown): UsageWindow {

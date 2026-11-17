@@ -137,11 +137,19 @@ def reset_credit_card(payload):
     if count is None or count<0: raise Sub2APIError("重置卡次数格式无效，未推算可用数量。")
     lines=["可用重置卡次数："+pretty_number(count)]
     grants=credits.get("credits")
-    for grant in grants if isinstance(grants,list) else []:
-        if isinstance(grant,dict) and grant.get("expires_at"):
-            expires=local_time(grant["expires_at"])
-            if expires:lines.append("其中一张到期："+expires)
-    return {"title":"重置卡次数","used":None,"remaining":None,"details":"\n".join(lines)}
+    expanded=[]
+    if isinstance(grants,list):
+        lines.append("接口返回到期明细："+pretty_number(len(grants))+" 条")
+        for index,grant in enumerate(grants,1):
+            expires=local_time(grant.get("expires_at")) if isinstance(grant,dict) else ""
+            expanded.append(f"#{index} · "+("到期："+expires if expires else "接口未返回到期时间"))
+    else:
+        lines.append("接口未返回到期明细，无法核对每张卡。")
+    if isinstance(grants,list) and count!=len(grants):
+        lines.append("接口计数与明细条数不同；仅展示返回明细，不推算差额。")
+    if isinstance(grants,list) and len(grants)>5:
+        lines.append("明细较多，展开查看。")
+    return {"title":"重置卡次数","used":None,"remaining":None,"details":"\n".join(lines),"expanded_details":expanded}
 
 def codex_credit_card(payload):
     data=_live_usage(payload);credits=data.get("credits")

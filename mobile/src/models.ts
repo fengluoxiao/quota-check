@@ -61,6 +61,8 @@ export interface UsageWindow {
   remaining: number | null;
   reset: string;
   detail: string;
+  expandedTitle?: string;
+  expandedLines?: string[];
 }
 export interface AccountCard {
   id: string;

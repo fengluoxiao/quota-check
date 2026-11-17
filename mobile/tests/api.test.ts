@@ -121,7 +121,9 @@ test('Card buttons read reset credits and points without consuming reset quota',
   const reset = await c.queryResetCredits(account);
   const credits = await c.queryCredits(account);
   assert.equal(reset.detail.split('\n')[0], '可用重置卡次数：2');
-  assert.match(reset.detail, /其中一张到期：11\/18/);
+  assert.match(reset.detail, /接口返回到期明细：1 条/);
+  assert.match(reset.expandedLines![0] ?? '', /^#1 · 到期：11\/18/);
+  assert.equal(reset.expandedTitle, '查看 1 条重置卡明细');
   assert.equal(credits.detail, '点数余额：18.40');
   const quotaCalls = b.calls.filter((r) => r.url.endsWith('/quota'));
   assert.equal(quotaCalls.length, 2);

@@ -99,6 +99,9 @@ class ClientTests(unittest.TestCase):
         self.login();account={"id":20,"name":"GPT Plus"}
         reset=self.client.query_reset_credits(account);points=self.client.query_credits(account)
         self.assertIn("可用重置卡次数：2",reset["details"])
+        self.assertIn("接口返回到期明细：1 条",reset["details"])
+        self.assertEqual(len(reset["expanded_details"]),1)
+        self.assertRegex(reset["expanded_details"][0],"^#1 · 到期：2026-11-18")
         self.assertIn("点数余额：18.40",points["details"])
         quota_calls=[call for call in self.server.calls if call[1].endswith("/quota")]
         self.assertEqual(len(quota_calls),2);self.assertTrue(all(call[0]=="GET" for call in quota_calls))
@@ -187,6 +190,11 @@ class ParsingTests(unittest.TestCase):
         with self.assertRaises(sub2api.Sub2APIError):sub2api.reset_credit_card({"rate_limit":{}})
         with self.assertRaises(sub2api.Sub2APIError):sub2api.codex_credit_card({"credits":{"has_credits":True,"unlimited":False,"balance":None}})
         self.assertIn("不限量",sub2api.codex_credit_card({"credits":{"has_credits":True,"unlimited":True,"balance":None}})["details"])
+    def test_many_reset_credits_use_summary_and_expanded_details(self):
+        payload={"rate_limit_reset_credits":{"available_count":7,"credits":[{"expires_at":"2026-12-01T00:00:00Z"},{"expires_at":"2026-12-02T00:00:00Z"},{"expires_at":"2026-12-03T00:00:00Z"},{"expires_at":"2026-12-04T00:00:00Z"},{"expires_at":"2026-12-05T00:00:00Z"},{"expires_at":"2026-12-06T00:00:00Z"},{"expires_at":"2026-12-07T00:00:00Z"}]}}
+        card=sub2api.reset_credit_card(payload)
+        self.assertIn("接口返回到期明细：7 条",card["details"]);self.assertIn("明细较多，展开查看。",card["details"])
+        self.assertEqual(len(card["expanded_details"]),7);self.assertNotIn("2026-12-01",card["details"])
     def test_raw_credential_redaction(self):
         raw=quota.redact_payload({"access_token":"a","refresh_token":"b","credentials":{"session_key":"c"},"totalTokens":123})
         self.assertEqual(raw["access_token"],"[已隐藏]");self.assertEqual(raw["refresh_token"],"[已隐藏]")

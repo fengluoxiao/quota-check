@@ -240,17 +240,28 @@ class VaultActions:
                 meta=" · ".join(x for x in (tier,source,"数据时间："+timestamp if timestamp else "") if x)
                 for card in cards:
                     used=card["used"]
-                    percentage=f"剩余 {card['remaining']:.1f}% · 已用 {used:.1f}%" if used is not None else "接口未提供有效的使用比例"
-                    bar=f'<ProgressBar Value="{min(100,used)}" Maximum="100" Height="5" />' if used is not None else ""
+                    if used is None:
+                        color="TextFillColorSecondaryBrush";percentage="接口未提供使用比例";bar=""
+                    else:
+                        remaining=card.get("remaining")
+                        color="SystemFillColorCriticalBrush" if remaining is not None and remaining<=10 else ("SystemFillColorCautionBrush" if remaining is not None and remaining<=30 else "SystemFillColorSuccessBrush")
+                        percentage=f"{card['remaining']:.1f}% 剩余";bar=f'<ProgressBar Value="{min(100,used):.1f}" Maximum="100" Height="5" CornerRadius="3" />'
                     detail=escape(card["details"],quote=True).replace("\n","&#10;")
-                    sections.append(f'<StackPanel Spacing="7"><TextBlock Text="{escape(card["title"],quote=True)}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{percentage}" FontSize="21" FontWeight="SemiBold"/>{bar}<TextBlock Text="{detail}" FontSize="12" TextWrapping="Wrap" Foreground="{{ThemeResource TextFillColorSecondaryBrush}}"/></StackPanel>')
+                    sections.append(f'''<Border Padding="14" CornerRadius="10" Background="{{ThemeResource CardBackgroundFillColorSecondaryBrush}}" BorderBrush="{{ThemeResource CardStrokeColorDefaultBrush}}" BorderThickness="1"><StackPanel Spacing="8"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel Grid.Column="0" Spacing="2"><TextBlock Text="{escape(card["title"],quote=True)}" FontSize="12" Foreground="{{ThemeResource TextFillColorSecondaryBrush}}" TextWrapping="Wrap"/><TextBlock Text="{percentage}" FontSize="22" FontWeight="SemiBold" Foreground="{{ThemeResource {color}}}"/></StackPanel><StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Bottom"><TextBlock Text="已用 {used:.1f}%" FontSize="12" HorizontalAlignment="Right" Foreground="{{ThemeResource TextFillColorSecondaryBrush}}"/></StackPanel></Grid>{bar}<TextBlock Text="{detail}" FontSize="11" LineHeight="19" TextWrapping="Wrap" Foreground="{{ThemeResource TextFillColorSecondaryBrush}}"/></StackPanel></Border>''')
                 if not cards:sections.append('<TextBlock Text="后台未返回额度窗口，没有推算可用比例。" TextWrapping="Wrap"/>')
             queries=item.get("queries",{})
             for kind,label in (("reset","重置卡次数"),("credits","Codex 点数")):
                 for card in queries.get(kind,[]):
-                    sections.append(f'<StackPanel Spacing="7"><TextBlock Text="{escape(label,quote=True)}" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{escape(card["details"],quote=True).replace(chr(10),"&#10;")}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/></StackPanel>')
-            note='<TextBlock Text="按钮只读取或刷新快照；不会调用消耗重置卡的 reset-quota 接口。" FontSize="11" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />'
-            card=XamlReader.Load(f'''<Border xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Padding="20" CornerRadius="12" Background="{{ThemeResource CardBackgroundFillColorDefaultBrush}}" BorderBrush="{{ThemeResource CardStrokeColorDefaultBrush}}" BorderThickness="1"><StackPanel Spacing="16"><TextBlock Text="{escape(label,quote=True)}" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{escape(meta,quote=True)}" FontSize="12" TextWrapping="Wrap" Foreground="{{ThemeResource TextFillColorSecondaryBrush}}"/>{''.join(sections)}<StackPanel x:Name="SubCardActions" Orientation="Horizontal" Spacing="8"><Button Content="查询重置卡"/><Button Content="查询点数"/><Button Content="刷新快照"/></StackPanel>{note}</StackPanel></Border>''')
+                    lines=[escape(line,quote=True) for line in card["details"].splitlines() if line.strip()]
+                    primary=lines[0].split("：",1)[-1] if "：" in lines[0] else lines[0]
+                    extras="".join(f'<TextBlock Text="{line}" FontSize="11" LineHeight="18" TextWrapping="Wrap" Foreground="{{ThemeResource TextFillColorSecondaryBrush}}"/>' for line in lines[1:])
+                    sections.append(f'''<Border Padding="12" CornerRadius="10" Background="{{ThemeResource CardBackgroundFillColorSecondaryBrush}}" BorderBrush="{{ThemeResource CardStrokeColorDefaultBrush}}" BorderThickness="1"><StackPanel Spacing="4"><TextBlock Text="{escape(label,quote=True)}" FontSize="11" Foreground="{{ThemeResource TextFillColorSecondaryBrush}}"/><TextBlock Text="{primary}" FontSize="18" FontWeight="SemiBold"/>{extras}</StackPanel></Border>''')
+                    if kind=="reset" and card.get("expanded_details"):
+                        details="".join(f'<Border Padding="10" CornerRadius="8" Background="{{ThemeResource CardBackgroundFillColorSecondaryBrush}}" BorderBrush="{{ThemeResource CardStrokeColorDefaultBrush}}" BorderThickness="1"><TextBlock Text="{escape(line,quote=True)}" FontSize="12" LineHeight="19" TextWrapping="Wrap"/></Border>' for line in card["expanded_details"])
+                        sections.append(f'''<Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False" Header="查看 {len(card['expanded_details'])} 条重置卡明细"><StackPanel Spacing="6">{details}</StackPanel></Expander>''')
+            note='<TextBlock Text="只读取或刷新快照 · 不消耗重置卡" FontSize="11" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />'
+            meta_chip=f'<Border Padding="8,4" CornerRadius="8" HorizontalAlignment="Left" Background="{{ThemeResource CardBackgroundFillColorSecondaryBrush}}" BorderBrush="{{ThemeResource CardStrokeColorDefaultBrush}}" BorderThickness="1"><TextBlock Text="{escape(meta,quote=True)}" FontSize="11" Foreground="{{ThemeResource TextFillColorSecondaryBrush}}"/></Border>' if meta else ""
+            card=XamlReader.Load(f'''<Border xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Padding="18" CornerRadius="16" Background="{{ThemeResource CardBackgroundFillColorDefaultBrush}}" BorderBrush="{{ThemeResource CardStrokeColorDefaultBrush}}" BorderThickness="1"><StackPanel Spacing="14"><TextBlock Text="{escape(label,quote=True)}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>{meta_chip}{''.join(sections)}<StackPanel x:Name="SubCardActions" Orientation="Horizontal" Spacing="8"><Button Content="重置卡" Height="32" MinWidth="86" Padding="14,4" FontSize="12" FontWeight="SemiBold" CornerRadius="8"/><Button Content="点数" Height="32" MinWidth="86" Padding="14,4" FontSize="12" FontWeight="SemiBold" CornerRadius="8"/><Button Content="刷新快照" Height="32" MinWidth="86" Padding="14,4" FontSize="12" FontWeight="SemiBold" CornerRadius="8" Style="{{StaticResource AccentButtonStyle}}"/></StackPanel>{note}</StackPanel></Border>''')
             from win32more.Microsoft.UI.Xaml.Controls import Border, Button, Panel
             content=card.as_(Border).Child.as_(Panel)
             actions=content.Children.GetAt(content.Children.Size-2)
@@ -263,7 +274,6 @@ class VaultActions:
     def render_sub(self,payload):self.render_bulk([{"account":payload.get("account",{}),"payload":payload}])
 
     async def SubCardQuery_Click(self,sender,e):
-        self.message("卡片按钮收到点击","正在转换为按钮对象。")
         if self.busy or self.card_busy:return
         from win32more.Microsoft.UI.Xaml.Controls import Button
         sender=sender.as_(Button)

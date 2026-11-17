@@ -120,6 +120,7 @@ function WindowCard({
   onSubAction?: (card: AccountCard, action: SubCardAction) => void;
   subActionBusy?: boolean;
 }) {
+  const [expandedQuery, setExpandedQuery] = useState<string | null>(null);
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
       <Text selectable={false} style={[styles.cardTitle, { color: colors.ink }]}>
@@ -131,6 +132,30 @@ function WindowCard({
           <View key={kind + index} style={styles.window}>
             <Text style={[styles.windowTitle, { color: colors.muted }]}>{query.title}</Text>
             <Text style={[styles.detail, { color: colors.ink }]}>{query.detail}</Text>
+            {!!query.expandedLines?.length && (
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() =>
+                    setExpandedQuery((current) => (current === kind + index ? null : kind + index))
+                  }
+                  style={({ pressed }) => [styles.queryToggle, { opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '600' }}>
+                    {expandedQuery === kind + index ? '收起明细' : query.expandedTitle}
+                  </Text>
+                </Pressable>
+                {expandedQuery === kind + index && (
+                  <View style={styles.queryList}>
+                    {query.expandedLines!.map((line, lineIndex) => (
+                      <Text key={lineIndex} style={[styles.queryItem, { color: colors.ink }]}>
+                        {line}
+                      </Text>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
           </View>
         )),
       )}
@@ -1304,6 +1329,16 @@ const styles = StyleSheet.create({
   button: { paddingVertical: 14, paddingHorizontal: 18, borderRadius: 12, alignItems: 'center' },
   subActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   subAction: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  queryToggle: { marginTop: 4 },
+  queryList: { gap: 6 },
+  queryItem: {
+    fontSize: 12,
+    lineHeight: 19,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: 'rgba(127,127,127,0.08)',
+  },
   buttonText: { fontSize: 16, fontWeight: '600' },
   empty: { paddingHorizontal: 22, paddingTop: 46, alignItems: 'center' },
   emptyTitle: { fontSize: 21, fontWeight: '600', marginBottom: 12 },
