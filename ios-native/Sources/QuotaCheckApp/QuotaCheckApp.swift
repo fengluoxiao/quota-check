@@ -338,3 +338,10 @@ struct QueryCardView: View {
     }
 }
 #endif
+
+#if !os(iOS)
+@main
+struct QuotaCheckMacBootstrap {
+    static func main() {}
+}
+#endif
