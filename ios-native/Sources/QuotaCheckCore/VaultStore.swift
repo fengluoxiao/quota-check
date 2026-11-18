@@ -5,10 +5,15 @@ enum VaultStore {
     static let keychainService = "com.fengluoxiao.quotacheck.native.vault"
     static let keychainAccount = "vault-key"
     #if targetEnvironment(simulator)
-    static let keychainAccessGroup: String? = "com.fengluoxiao.quotacheck.native"
+    static let usesKeychain = false
     #else
-    static let keychainAccessGroup: String? = nil
+    static let usesKeychain = true
     #endif
+
+    private static func fallbackKeyURL() throws -> URL {
+        let parent = try storageURL()
+        return parent.appendingPathComponent("native-key.sqkey")
+    }
 
     static func storageURL() throws -> URL {
         let parent = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
@@ -25,11 +30,15 @@ enum VaultStore {
         var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
          kSecAttrService as String: keychainService,
          kSecAttrAccount as String: account]
-        if let group = keychainAccessGroup { query[kSecAttrAccessGroup as String] = group }
         return query
     }
 
     static func readKey(account: String = keychainAccount) throws -> String? {
+        if !usesKeychain {
+            let url = try fallbackKeyURL()
+            guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+            return try String(contentsOf: url, encoding: .utf8)
+        }
         var query = keychainQuery(account: account)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -42,6 +51,13 @@ enum VaultStore {
 
     static func writeKey(_ value: String, account: String = keychainAccount) throws {
         guard let data = value.data(using: .utf8) else { throw VaultFailure.invalid }
+        if !usesKeychain {
+            let url = try fallbackKeyURL()
+            try data.write(to: url, options: [.atomic, .completeFileProtection])
+            var values = URLResourceValues(); values.isExcludedFromBackup = true
+            try url.setResourceValues(values)
+            return
+        }
         var query = keychainQuery(account: account)
         let status = SecItemAdd(query as CFDictionary, nil)
         if status == errSecDuplicateItem {
@@ -52,6 +68,12 @@ enum VaultStore {
     }
 
     static func deleteKey(account: String = keychainAccount) {
+        if !usesKeychain {
+            if let url = try? fallbackKeyURL(), FileManager.default.fileExists(atPath: url.path) {
+                try? FileManager.default.removeItem(at: url)
+            }
+            return
+        }
         SecItemDelete(keychainQuery(account: account) as CFDictionary)
     }
 

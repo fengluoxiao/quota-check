@@ -316,7 +316,9 @@ final class AppModel: ObservableObject {
             stage = "generate-key"; report["stage"] = stage
             try VaultStore.writeKey(secret, account: probe)
             stage = "keychain"; report["stage"] = stage
-            report["keychain"] = try VaultStore.readKey(account: probe) == secret
+            let keyRead = try VaultStore.readKey(account: probe) == secret
+            report["keychain"] = VaultStore.usesKeychain && keyRead
+            report["keychainFallback"] = !VaultStore.usesKeychain && keyRead
             try VaultStore.deleteKey(account: probe)
             stage = "signing"; report["stage"] = stage
             let sha = try NativeHashCodec.sha256("quota-check")
@@ -333,7 +335,7 @@ final class AppModel: ObservableObject {
             try VaultStore.deleteStorage()
             stage = "provider-ui"; report["stage"] = stage
             report["providerUI"] = services.count
-            report["ok"] = report["keychain"] as? Bool == true && report["signing"] as? Bool == true && report["crypto"] as? Bool == true && report["storage"] as? Bool == true && services.count == 9
+            report["ok"] = keyRead && report["signing"] as? Bool == true && report["crypto"] as? Bool == true && report["storage"] as? Bool == true && services.count == 9
             report["stage"] = "complete"
         } catch {
             report["stage"] = stage

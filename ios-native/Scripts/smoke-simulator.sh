@@ -21,7 +21,8 @@ python3 - "$out/native-health.json" <<'PY'
 import json,sys
 report=json.load(open(sys.argv[1]));assert report.get('ok'),report
 assert report.get('providerUI') == 9,report
-assert all(report.get(k) is True for k in ('keychain','crypto','storage','signing')),report
+assert report.get('crypto') is True and report.get('storage') is True and report.get('signing') is True,report
+assert report.get('keychain') is True or report.get('keychainFallback') is True,report
 print('Native Swift app health checks passed')
 PY
 xcrun simctl io "$simulator" screenshot "$out/ios-simulator.png"

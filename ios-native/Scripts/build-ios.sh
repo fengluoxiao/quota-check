@@ -71,7 +71,7 @@ printf 'APPL????' > "$app/PkgInfo"
 /usr/libexec/PlistBuddy -c 'Add :UISupportedInterfaceOrientations:2 string UIInterfaceOrientationLandscapeRight' "$app/Info.plist"
 
 if [[ "$mode" == "simulator" ]]; then
-  codesign --force --sign - --entitlements "$root/Scripts/QuotaCheck.entitlements" "$app"
+  codesign --force --sign - "$app"
   zip -qry -1 "$out/QuotaCheck-ios-simulator-arm64.app.zip" "$app"
 else
   mkdir -p "$out/PayloadDevice/QuotaCheck.app"
