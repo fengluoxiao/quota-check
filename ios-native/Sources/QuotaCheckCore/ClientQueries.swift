@@ -45,7 +45,7 @@ func resetCreditCard(_ payload: Any?) throws -> UsageWindow {
 }
 
 private func parseExposedDate(_ value: Any?) -> Date? {
-    guard !(value is Bool), !(value is NSNull) else { return nil }
+    guard !isBoolValue(value), !(value is NSNull) else { return nil }
     if let raw = value as? String {
         if let seconds = Double(raw) { return Date(timeIntervalSince1970: seconds > 100_000_000_000 ? seconds / 1000 : seconds) }
         let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

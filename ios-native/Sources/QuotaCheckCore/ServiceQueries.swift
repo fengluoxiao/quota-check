@@ -146,7 +146,7 @@ func queryService(id: String, profile: Profile, transport: Transport, hash: Hash
 }
 
 func providerPublicNumber(_ value: Any?) -> Double? {
-    guard !(value is Bool), !(value is NSNull), let value = value as? NSNumber else { return nil }
+    guard !isBoolValue(value), !(value is NSNull), let value = value as? NSNumber else { return nil }
     let result = value.doubleValue
     return result.isFinite && result >= 0 ? result : nil
 }

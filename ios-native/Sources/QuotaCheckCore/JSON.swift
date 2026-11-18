@@ -15,10 +15,16 @@ func text(_ value: Any?) -> String? {
 }
 
 func number(_ value: Any?, negative: Bool = false) -> Double? {
-    guard !(value is Bool), let raw = value as? NSNumber else { return nil }
+    guard !isBoolValue(value), let raw = value as? NSNumber else { return nil }
     let converted = raw.isBoolNumber ? raw.boolValue ? 1.0 : 0.0 : raw.doubleValue
     guard converted.isFinite, negative || converted >= 0 else { return nil }
     return converted
+}
+
+func isBoolValue(_ value: Any?) -> Bool {
+    if value is Bool { return true }
+    guard let number = value as? NSNumber else { return false }
+    return number.isBoolNumber
 }
 
 extension NSNumber {

@@ -8,7 +8,7 @@ struct ProviderWindow {
 }
 
 private func providerNumber(_ value: Any?, negative: Bool = false) -> Double? {
-    guard !(value is Bool), !(value is NSNull) else { return nil }
+    guard !isBoolValue(value), !(value is NSNull) else { return nil }
     if let value = value as? String, value.trimmingCharacters(in: .whitespaces).isEmpty { return nil }
     let result: Double?
     if let text = value as? String { result = Double(text) }
@@ -21,11 +21,10 @@ private func providerNumber(_ value: Any?, negative: Bool = false) -> Double? {
 private func makeProviderWindow(title: String, percentRaw: Any?, resetRaw: Any? = nil, detail input: String = "") -> ProviderWindow? {
     var percent = providerNumber(percentRaw)
     if let value = percent, value > 100 { percent = nil }
-    if percent == nil && input.isEmpty && resetRaw == nil { return nil }
-    if let reset = resetRaw, reset is NSNull, input.isEmpty { return nil }
+    if percent == nil && input.isEmpty && (resetRaw == nil || resetRaw is NSNull) { return nil }
     let resetNumber = providerNumber(resetRaw, negative: true)
     var detail = input
-    if !(resetRaw is Bool), resetRaw != nil, !(resetRaw is NSNull), resetNumber == nil || resetNumber! > 0,
+    if !isBoolValue(resetRaw), resetRaw != nil, !(resetRaw is NSNull), resetNumber == nil || resetNumber! > 0,
        let resetText = formatProviderTime(resetRaw), !resetText.isEmpty {
         detail += (detail.isEmpty ? "" : "\n") + "重置时间：" + resetText
     }
