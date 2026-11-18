@@ -4,6 +4,11 @@ import Security
 enum VaultStore {
     static let keychainService = "com.fengluoxiao.quotacheck.native.vault"
     static let keychainAccount = "vault-key"
+    #if targetEnvironment(simulator)
+    static let keychainAccessGroup: String? = "com.fengluoxiao.quotacheck.native"
+    #else
+    static let keychainAccessGroup: String? = nil
+    #endif
 
     static func storageURL() throws -> URL {
         let parent = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
@@ -17,9 +22,11 @@ enum VaultStore {
     }
 
     private static func keychainQuery(account: String = keychainAccount) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword,
+        var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
          kSecAttrService as String: keychainService,
          kSecAttrAccount as String: account]
+        if let group = keychainAccessGroup { query[kSecAttrAccessGroup as String] = group }
+        return query
     }
 
     static func readKey(account: String = keychainAccount) throws -> String? {
