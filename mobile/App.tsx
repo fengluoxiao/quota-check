@@ -130,55 +130,6 @@ function WindowCard({
         {card.title}
       </Text>
       <Text style={[styles.meta, { color: colors.muted }]}>{card.subtitle}</Text>
-      {(['reset', 'credits'] as const).map((kind) =>
-        (card.queries?.[kind] ?? []).map((query, index) => (
-          <View
-            key={kind + index}
-            style={[
-              styles.queryCard,
-              { backgroundColor: colors.background, borderColor: colors.line },
-            ]}
-          >
-            <Text style={[styles.queryLabel, { color: colors.muted }]}>{query.title}</Text>
-            <Text style={[styles.queryValue, { color: colors.ink }]}>
-              {query.detail.split('\n')[0] ?? ''}
-            </Text>
-            {query.detail
-              .split('\n')
-              .slice(1)
-              .filter(Boolean)
-              .map((line, lineIndex) => (
-                <Text key={lineIndex} style={[styles.detail, { color: colors.muted }]}>
-                  {line}
-                </Text>
-              ))}
-            {!!query.expandedLines?.length && (
-              <>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() =>
-                    setExpandedQuery((current) => (current === kind + index ? null : kind + index))
-                  }
-                  style={({ pressed }) => [styles.queryToggle, { opacity: pressed ? 0.7 : 1 }]}
-                >
-                  <Text style={[styles.queryToggleText, { color: colors.accent }]}>
-                    {expandedQuery === kind + index ? '收起明细' : query.expandedTitle}
-                  </Text>
-                </Pressable>
-                {expandedQuery === kind + index && (
-                  <View style={styles.queryList}>
-                    {query.expandedLines!.map((line, lineIndex) => (
-                      <Text key={lineIndex} style={[styles.queryItem, { color: colors.ink }]}>
-                        {line}
-                      </Text>
-                    ))}
-                  </View>
-                )}
-              </>
-            )}
-          </View>
-        )),
-      )}
       {card.error ? (
         <Text style={{ color: colors.danger }}>{card.error}</Text>
       ) : card.windows.length ? (
@@ -243,6 +194,55 @@ function WindowCard({
         ))
       ) : (
         <Text style={{ color: colors.muted }}>后台没有返回额度窗口，没有推算可用比例。</Text>
+      )}
+      {(['reset', 'credits'] as const).map((kind) =>
+        (card.queries?.[kind] ?? []).map((query, index) => (
+          <View
+            key={kind + index}
+            style={[
+              styles.queryCard,
+              { backgroundColor: colors.background, borderColor: colors.line },
+            ]}
+          >
+            <Text style={[styles.queryLabel, { color: colors.muted }]}>{query.title}</Text>
+            <Text style={[styles.queryValue, { color: colors.ink }]}>
+              {query.detail.split('\n')[0] ?? ''}
+            </Text>
+            {query.detail
+              .split('\n')
+              .slice(1)
+              .filter(Boolean)
+              .map((line, lineIndex) => (
+                <Text key={lineIndex} style={[styles.detail, { color: colors.muted }]}>
+                  {line}
+                </Text>
+              ))}
+            {!!query.expandedLines?.length && (
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() =>
+                    setExpandedQuery((current) => (current === kind + index ? null : kind + index))
+                  }
+                  style={({ pressed }) => [styles.queryToggle, { opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Text style={[styles.queryToggleText, { color: colors.accent }]}>
+                    {expandedQuery === kind + index ? '收起明细' : query.expandedTitle}
+                  </Text>
+                </Pressable>
+                {expandedQuery === kind + index && (
+                  <View style={styles.queryList}>
+                    {query.expandedLines!.map((line, lineIndex) => (
+                      <Text key={lineIndex} style={[styles.queryItem, { color: colors.ink }]}>
+                        {line}
+                      </Text>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        )),
       )}
       {onSubAction && (
         <View style={styles.subActions}>
