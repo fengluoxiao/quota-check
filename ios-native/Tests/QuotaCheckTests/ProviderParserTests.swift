@@ -17,9 +17,9 @@ final class ProviderParserTests: XCTestCase {
             XCTAssertEqual(rows.count, expected.count, id)
             for (index, row) in rows.enumerated() {
                 let item = expected[index]
-                if let used = item["used"] as? NSNumber { XCTAssertEqual(row.used, used.doubleValue, accuracy: 0.0001, id) }
+                if let used = item["used"] as? NSNumber { XCTAssertEqual(row.used ?? -1, used.doubleValue, accuracy: 0.0001, id) }
                 else { XCTAssertNil(row.used, id) }
-                if let remaining = item["remaining"] as? NSNumber { XCTAssertEqual(row.remaining, remaining.doubleValue, accuracy: 0.0001, id) }
+                if let remaining = item["remaining"] as? NSNumber { XCTAssertEqual(row.remaining ?? -1, remaining.doubleValue, accuracy: 0.0001, id) }
                 else { XCTAssertNil(row.remaining, id) }
                 if let title = item["title"] as? String { XCTAssertTrue(row.title.contains(title), id) }
                 if let contains = item["contains"] as? String { XCTAssertTrue(row.details.contains(contains), id) }
