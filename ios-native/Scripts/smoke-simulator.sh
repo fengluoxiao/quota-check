@@ -23,6 +23,7 @@ report=json.load(open(sys.argv[1]));assert report.get('ok'),report
 assert report.get('providerUI') == 9,report
 assert report.get('crypto') is True and report.get('storage') is True and report.get('signing') is True,report
 assert report.get('keychain') is True or report.get('keychainFallback') is True,report
+assert report.get('importPersistence') is True,report
 print('Native Swift app health checks passed')
 PY
 xcrun simctl io "$simulator" screenshot "$out/ios-simulator.png"

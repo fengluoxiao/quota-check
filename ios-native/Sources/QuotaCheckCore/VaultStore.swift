@@ -33,11 +33,17 @@ enum VaultStore {
         return query
     }
 
+    private static func validKey(_ data: Data) -> String? {
+        guard let key = String(data: data, encoding: .utf8),
+              let decoded = Data(base64Encoded: key), decoded.count == 32 else { return nil }
+        return key
+    }
+
     static func readKey(account: String = keychainAccount) throws -> String? {
         if !usesKeychain {
             var url = try fallbackKeyURL()
             guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-            return try String(contentsOf: url, encoding: .utf8)
+            return validKey(try Data(contentsOf: url))
         }
         var query = keychainQuery(account: account)
         query[kSecReturnData as String] = true
@@ -45,12 +51,13 @@ enum VaultStore {
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = result as? Data else { throw QuotaError("本机连接密钥不可用，请导入备份或清除本机连接。") }
-        return String(data: data, encoding: .utf8)
+        guard status == errSecSuccess else { throw QuotaError("本机连接密钥不可用，请导入备份或清除本机连接。") }
+        guard let data = result as? Data else { return nil }
+        return validKey(data)
     }
 
     static func writeKey(_ value: String, account: String = keychainAccount) throws {
-        guard let data = value.data(using: .utf8) else { throw VaultFailure.invalid }
+        guard let data = value.data(using: .utf8), validKey(data) != nil else { throw VaultFailure.invalid }
         if !usesKeychain {
             var url = try fallbackKeyURL()
             try data.write(to: url, options: [.atomic, .completeFileProtection])
@@ -58,11 +65,14 @@ enum VaultStore {
             try url.setResourceValues(values)
             return
         }
-        var query = keychainQuery(account: account)
-        let status = SecItemAdd(query as CFDictionary, nil)
+        let query = keychainQuery(account: account)
+        let attributes: [String: Any] = [kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]
+        var item = query
+        item.merge(attributes) { _, value in value }
+        let status = SecItemAdd(item as CFDictionary, nil)
         if status == errSecDuplicateItem {
-            let update: [String: Any] = [kSecValueData as String: data, kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]
-            let updateStatus = SecItemUpdate(query as CFDictionary, update as CFDictionary)
+            let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
             guard updateStatus == errSecSuccess else { throw VaultFailure.invalid }
         } else if status != errSecSuccess { throw VaultFailure.invalid }
     }

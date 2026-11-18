@@ -46,7 +46,6 @@ final class AppModel: ObservableObject {
     @Published var fileError = ""
 
     private var subClient: SubClient?
-    private var importURL: URL?
     private var exportData: Data?
     private var initialized = false
 
@@ -250,7 +249,6 @@ final class AppModel: ObservableObject {
             defer { if gotAccess { url.stopAccessingSecurityScopedResource() } }
             let data = try Data(contentsOf: url)
             try validateFileMode(data)
-            importURL = url
             filePassword = ""; fileConfirm = ""; fileError = ""
             fileTask = .importData(data)
         } catch {
@@ -286,6 +284,7 @@ final class AppModel: ObservableObject {
                 merged.profiles = vault.profiles.merging(next.profiles) { _, imported in imported }
                 try VaultStore.save(merged, replace: true)
                 vault = merged; cards = []; subClient = nil
+                blocked = false; needsOTP = false; form = ConnectionForm()
                 settingsOpen = false
                 fileTask = nil
                 filePassword = ""; fileConfirm = ""
@@ -331,9 +330,26 @@ final class AppModel: ObservableObject {
             try VaultStore.writeStorage(temporary)
             report["storage"] = try VaultStore.readStorage() == temporary
             try VaultStore.deleteStorage()
+            stage = "import-persistence"; report["stage"] = stage
+            // Exercise the same import action as the password sheet, then reload from disk.
+            // This test connection is never queried and is removed before the UI screenshot.
+            defer {
+                try? VaultStore.clear()
+                vault = freshVault(); blocked = false; needsOTP = false
+                fileTask = nil; filePassword = ""; fileError = ""
+                notice = "首次添加连接或导入加密文件，然后点击查询。"
+            }
+            let fixture = VaultData(source: 2, profiles: ["kimi": Profile(kind: "kimi", key: "native-import-self-test", sealed: false)])
+            let importBlob = try NativeVaultCodec.seal(try encodeJSON(fixture.jsonValue()), mode: 1, secret: secret)
+            blocked = true; needsOTP = true
+            fileTask = .importData(importBlob); filePassword = secret
+            await finishFile()
+            let restored = try VaultStore.load()
+            report["importPersistence"] = restored.source == 2 && restored.profiles["kimi"]?.key == "native-import-self-test"
+                && restored.profiles["kimi"]?.sealed == true && !blocked && !needsOTP && fileTask == nil && fileError.isEmpty
             stage = "provider-ui"; report["stage"] = stage
             report["providerUI"] = services.count
-            report["ok"] = keyRead && report["signing"] as? Bool == true && report["crypto"] as? Bool == true && report["storage"] as? Bool == true && services.count == 9
+            report["ok"] = keyRead && report["signing"] as? Bool == true && report["crypto"] as? Bool == true && report["storage"] as? Bool == true && report["importPersistence"] as? Bool == true && services.count == 9
             report["stage"] = "complete"
         } catch {
             report["stage"] = stage
