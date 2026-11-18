@@ -15,7 +15,7 @@ func text(_ value: Any?) -> String? {
 }
 
 func number(_ value: Any?, negative: Bool = false) -> Double? {
-    guard !isBoolValue(value), let raw = value as? NSNumber else { return nil }
+    guard !(value is NSNull), let raw = value as? NSNumber else { return nil }
     let converted = raw.isBoolNumber ? raw.boolValue ? 1.0 : 0.0 : raw.doubleValue
     guard converted.isFinite, negative || converted >= 0 else { return nil }
     return converted
