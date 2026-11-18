@@ -1,3 +1,4 @@
+#if os(iOS)
 import Foundation
 import Combine
 import QuotaCheckCore
@@ -14,7 +15,6 @@ struct ConnectionForm {
     var otp = ""
     var secret: [String: String] = [:]
 }
-
 enum FileTask {
     case importData(Data)
     case exportData
@@ -334,3 +334,4 @@ final class AppModel: ObservableObject {
         }
     }
 }
+#endif
