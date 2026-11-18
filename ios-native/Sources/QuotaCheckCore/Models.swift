@@ -154,8 +154,8 @@ struct VaultData {
     var profiles: [String: Profile] = [:]
 
     func jsonValue() throws -> JSON {
-        var profiles: JSON = [:]
-        for (name, profile) in profiles.sorted(by: { $0.key < $1.key }) {
+        var outputProfiles: JSON = [:]
+        for (name, profile) in self.profiles.sorted(by: { $0.key < $1.key }) {
             var value: JSON = ["sealed": profile.sealed]
             switch profile.kind {
             case "kimi":
@@ -186,9 +186,9 @@ struct VaultData {
                 if let secret2 = profile.secret2 { value["secret2"] = secret2 }
                 if let session = profile.sessionToken { value["session_token"] = session }
             }
-            profiles[name] = value
+            outputProfiles[name] = value
         }
-        return ["version": 1, "source": source, "profiles": profiles]
+        return ["version": 1, "source": source, "profiles": outputProfiles]
     }
 }
 

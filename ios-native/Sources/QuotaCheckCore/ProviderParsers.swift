@@ -20,7 +20,7 @@ private func providerNumber(_ value: Any?, negative: Bool = false) -> Double? {
 
 private func makeProviderWindow(title: String, percentRaw: Any?, resetRaw: Any? = nil, detail input: String = "") -> ProviderWindow? {
     var percent = providerNumber(percentRaw)
-    if let percent, percent > 100 { percent = nil }
+    if let value = percent, value > 100 { percent = nil }
     if percent == nil && input.isEmpty && resetRaw == nil { return nil }
     if let reset = resetRaw, reset is NSNull, input.isEmpty { return nil }
     let resetNumber = providerNumber(resetRaw, negative: true)

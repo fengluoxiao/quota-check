@@ -79,7 +79,7 @@ func serviceRequest(id: String, record: Profile, page: Int = 0, hash: HashFuncti
         let stamp = timestamp ?? ISO8601DateFormatter().string(from: Date())
             .replacingOccurrences(of: "-", with: "").replacingOccurrences(of: ":", with: "")
             .replacingOccurrences(of: #"\.\d{3}Z$"#, with: "Z", options: .regularExpression)
-        headers.merge(signVolc(profile: profile, hash: hash, stamp: stamp)) { _, new in new }
+        headers.merge(try signVolc(profile: profile, hash: hash, stamp: stamp)) { _, new in new }
         return RequestSpec(url: "https://ark.cn-beijing.volcengineapi.com/?Action=GetAFPUsage&Version=2024-01-01", method: "POST", headers: headers, body: "{}")
     }
     guard page >= 0, page < 100 else { throw QuotaError("分页超限。") }
