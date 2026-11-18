@@ -109,13 +109,12 @@ func kimiWindows(_ payload: Any?) throws -> [UsageWindow] {
         let title = String(((text(data["name"]) ?? text(data["title"])) ?? fallback).prefix(160))
         result.append(UsageWindow(title: title, used: percent, remaining: percent == nil ? nil : 100 - percent!, reset: kimiReset(data), detail: details.joined(separator: " · ").isEmpty ? "接口未提供具体额度。" : details.joined(separator: " · ")))
     }
-    print("KIMI_ROWS_DEBUG", rows.count, result.count, rows, result)
     guard !result.isEmpty else { throw QuotaError("Kimi 未返回可用的套餐额度，请使用 Kimi Coding Plan Key。") }
     return result
 }
 
 private func kimiAmount(_ value: Any?) -> Double? {
-    guard !isBoolValue(value), !(value is NSNull) else { return nil }
+    guard !(value is NSNull) else { return nil }
     if let text = value as? String, !text.trimmingCharacters(in: .whitespaces).isEmpty, let value = Double(text), value.isFinite, value >= 0 { return value }
     if let value = value as? NSNumber, value.doubleValue.isFinite, value.doubleValue >= 0 { return value.doubleValue }
     return nil

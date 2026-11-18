@@ -13,7 +13,6 @@ final class ProviderParserTests: XCTestCase {
         for item in cases {
             let id = item["id"] as? String ?? ""
             let rows = try parseProvider(id: id, payload: item["payload"], sealed: false)
-            print("PARSER_DEBUG", id, rows)
             let expected = item["expect"] as? [[String: Any]] ?? []
             XCTAssertEqual(rows.count, expected.count, id)
             for (index, row) in rows.enumerated() {
