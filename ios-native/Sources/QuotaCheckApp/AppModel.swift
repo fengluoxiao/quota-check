@@ -278,12 +278,8 @@ final class AppModel: ObservableObject {
         if case .exportData = task, filePassword != fileConfirm { fileError = "两次输入的文件密码不一致。"; return }
         busy = true; fileError = ""
         do {
-            if case .importData = task {
-                guard let url = importURL else { throw VaultFailure.invalid }
-                let gotAccess = url.startAccessingSecurityScopedResource()
-                defer { if gotAccess { url.stopAccessingSecurityScopedResource() } }
-                let data = try Data(contentsOf: url)
-                let plaintext = try NativeVaultCodec.open(data, secret: filePassword)
+            if case .importData(let blob) = task {
+                let plaintext = try NativeVaultCodec.open(blob, secret: filePassword)
                 let next = try lockImported(decodeJSON(plaintext))
                 var merged = freshVault()
                 merged.source = next.source
@@ -291,6 +287,8 @@ final class AppModel: ObservableObject {
                 try VaultStore.save(merged, replace: true)
                 vault = merged; cards = []; subClient = nil
                 settingsOpen = false
+                fileTask = nil
+                filePassword = ""; fileConfirm = ""
                 notice = "连接已导入并隐藏凭据，点击查询即可。"
             }
             if case .exportData = task {
