@@ -1,0 +1,232 @@
+[
+  {
+    "name": "weekly and five hour window",
+    "payload": {
+      "usage": {
+        "limit": "100",
+        "used": "28",
+        "remaining": "72",
+        "resetTime": "2026-11-24T00:00:00Z"
+      },
+      "limits": [
+        {
+          "window": {
+            "duration": 300,
+            "timeUnit": "TIME_UNIT_MINUTE"
+          },
+          "detail": {
+            "limit": "50",
+            "remaining": "40",
+            "resetTime": "2026-11-17T12:00:00.123456789Z"
+          }
+        }
+      ]
+    },
+    "expected": [
+      {
+        "title": "周额度",
+        "used": 28,
+        "remaining": 72,
+        "parts": [
+          "已用 28",
+          "总计 100",
+          "剩余 72"
+        ],
+        "reset": true
+      },
+      {
+        "title": "5 小时额度",
+        "used": 20,
+        "remaining": 80,
+        "parts": [
+          "已用 10",
+          "剩余 40"
+        ],
+        "reset": true
+      }
+    ]
+  },
+  {
+    "name": "remaining only",
+    "payload": {
+      "usage": {
+        "limit": 200,
+        "remaining": 150
+      }
+    },
+    "expected": [
+      {
+        "title": "周额度",
+        "used": 25,
+        "remaining": 75,
+        "parts": [
+          "已用 50",
+          "剩余 150"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "missing usage must stay unknown",
+    "payload": {
+      "usage": {
+        "limit": 100
+      }
+    },
+    "expected": [
+      {
+        "title": "周额度",
+        "used": null,
+        "remaining": null,
+        "parts": [
+          "总计 100"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "zero capacity is not 100 percent free",
+    "payload": {
+      "usage": {
+        "limit": 0,
+        "used": 0
+      }
+    },
+    "expected": [
+      {
+        "title": "周额度",
+        "used": null,
+        "remaining": null,
+        "parts": [
+          "总计 0"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "over quota",
+    "payload": {
+      "usage": {
+        "limit": 10,
+        "used": 12
+      }
+    },
+    "expected": [
+      {
+        "title": "周额度",
+        "used": 100,
+        "remaining": 0,
+        "parts": [
+          "已用 12",
+          "剩余 0"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "flat limits and custom names",
+    "payload": {
+      "limits": [
+        {
+          "name": "工具额度",
+          "limit": "10",
+          "used": "2",
+          "reset_in": 0
+        },
+        {
+          "window": {
+            "duration": 1,
+            "timeUnit": "TIME_UNIT_DAY"
+          },
+          "detail": {
+            "limit": 20,
+            "used": 5
+          }
+        },
+        {
+          "window": {
+            "duration": 90,
+            "timeUnit": "TIME_UNIT_MINUTE"
+          },
+          "detail": {
+            "remaining": 4
+          }
+        }
+      ]
+    },
+    "expected": [
+      {
+        "title": "工具额度",
+        "used": 20,
+        "remaining": 80,
+        "parts": [
+          "已用 2"
+        ],
+        "reset": true
+      },
+      {
+        "title": "1 天额度",
+        "used": 25,
+        "remaining": 75,
+        "parts": [
+          "已用 5"
+        ]
+      },
+      {
+        "title": "90 分钟额度",
+        "used": null,
+        "remaining": null,
+        "parts": [
+          "剩余 4"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "invalid numbers do not become zero",
+    "payload": {
+      "usage": {
+        "limit": 100,
+        "used": true,
+        "remaining": "NaN"
+      }
+    },
+    "expected": [
+      {
+        "title": "周额度",
+        "used": null,
+        "remaining": null,
+        "parts": [
+          "总计 100"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "unknown window is not called five hours",
+    "payload": {
+      "limits": [
+        {
+          "window": {
+            "duration": 3,
+            "timeUnit": "FUTURE_UNIT"
+          },
+          "detail": {
+            "limit": 10,
+            "used": 1
+          }
+        }
+      ]
+    },
+    "expected": [
+      {
+        "title": "周期额度 #1",
+        "used": 10,
+        "remaining": 90,
+        "parts": [
+          "已用 1"
+        ]
+      }
+    ]
+  }
+]

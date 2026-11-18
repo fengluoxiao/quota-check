@@ -1,0 +1,73 @@
+name: iOS native SwiftUI build (macOS 27)
+on:
+  push:
+    branches: [main]
+    paths:
+      ["ios-native/**", ".github/workflows/ios-native.yml"]
+  pull_request:
+    paths: ["ios-native/**", ".github/workflows/ios-native.yml"]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Publish verified native iOS package
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency:
+  group: ios-native-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ios:
+    runs-on: xcode-27
+    timeout-minutes: 50
+    env:
+      IOS_BUNDLE_IDENTIFIER: ${{ vars.IOS_NATIVE_BUNDLE_IDENTIFIER || 'com.fengluoxiao.quotacheck.native' }}
+      IOS_BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Verify macOS 27 / Xcode 27
+        run: |
+          sw_vers
+          xcodebuild -version
+          test "$(uname -m)" = arm64
+          case "$(sw_vers -productVersion)" in 27.*) ;; *) exit 1 ;; esac
+      - name: Run Swift protocol tests
+        working-directory: ios-native
+        run: swift test
+      - name: Build and verify iOS simulator app
+        working-directory: ios-native
+        env:
+          IOS_BUILD_MODE: simulator
+        run: |
+          bash Scripts/build-ios.sh
+          bash Scripts/smoke-simulator.sh
+      - name: Build unsigned iPhone device package
+        working-directory: ios-native
+        env:
+          IOS_BUILD_MODE: device
+        run: bash Scripts/build-ios.sh
+      - name: Upload native package, checksums and reports
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: quota-check-ios-native-${{ github.run_number }}
+          path: |
+            ios-native/build/QuotaCheck-ios-unsigned.ipa
+            ios-native/build/QuotaCheck-ios-simulator-arm64.app.zip
+            ios-native/build/ios-simulator.png
+            ios-native/build/native-health.json
+            ios-native/build/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish native iOS preview
+        if: github.event_name == 'workflow_dispatch' && inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: ios-native/build
+        run: |
+          tag='v2.0.0-ios-native'
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" --repo "$GITHUB_REPOSITORY" --clobber QuotaCheck-ios-unsigned.ipa QuotaCheck-ios-simulator-arm64.app.zip ios-simulator.png native-health.json SHA256SUMS.txt
+          else
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false --title 'v2.0.0 iOS Native Preview — SwiftUI' --notes '纯 Swift / SwiftUI iOS 客户端预览。复用 Argon2 + AES-GCM 加密文件互通和 Keychain；不再包含 React Native / WebView 运行时。IPA 未签名，安装真机前需要 Apple 签名。' QuotaCheck-ios-unsigned.ipa QuotaCheck-ios-simulator-arm64.app.zip ios-simulator.png native-health.json SHA256SUMS.txt
+          fi

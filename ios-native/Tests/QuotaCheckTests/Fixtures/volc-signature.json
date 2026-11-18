@@ -1,0 +1,13 @@
+{
+  "source": "Volcengine official Python SDK SignerV4",
+  "source_sha256": "427272d0334c28d9d1cb4f0db116605c310291850d82c23287474879ac9ca32b",
+  "timestamp": "20261117T010203Z",
+  "headers": {
+    "Content-Type": "application/json",
+    "Host": "ark.cn-beijing.volcengineapi.com",
+    "X-Date": "20261117T010203Z",
+    "X-Content-Sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "X-Security-Token": "test-only-session",
+    "Authorization": "HMAC-SHA256 Credential=AKIDEXAMPLE/20261117/cn-beijing/ark/request, SignedHeaders=content-type;host;x-content-sha256;x-date;x-security-token, Signature=955d3d29658a18c554d8c9126b59aa3431290019bcac64b64255305511934f22"
+  }
+}

@@ -1,0 +1,302 @@
+[
+  {
+    "id": "claude",
+    "payload": {
+      "five_hour": {
+        "utilization": 24.5,
+        "resets_at": "2026-11-17T10:00:00Z"
+      },
+      "seven_day": {
+        "utilization": 70,
+        "resets_at": null
+      },
+      "seven_day_opus": null
+    },
+    "expect": [
+      {
+        "used": 24.5,
+        "remaining": 75.5,
+        "title": "5 小时"
+      },
+      {
+        "used": 70,
+        "remaining": 30,
+        "title": "7 天"
+      }
+    ]
+  },
+  {
+    "id": "aliyun_token",
+    "payload": {
+      "data": {
+        "DataV2": {
+          "data": {
+            "data": {
+              "per5HourPercentage": 0,
+              "per1MonthPercentage": 0.5,
+              "per1MonthResetTime": 1795536000000
+            }
+          }
+        }
+      }
+    },
+    "expect": [
+      {
+        "used": 0,
+        "remaining": 100,
+        "title": "5 小时"
+      },
+      {
+        "used": 50,
+        "remaining": 50,
+        "title": "1 月"
+      }
+    ]
+  },
+  {
+    "id": "aliyun_coding",
+    "payload": {
+      "data": {
+        "DataV2": {
+          "data": {
+            "data": {
+              "codingPlanInstanceInfos": [
+                {
+                  "status": "EXPIRED",
+                  "codingPlanQuotaInfo": {
+                    "per5HourUsedQuota": 99,
+                    "per5HourTotalQuota": 100
+                  }
+                },
+                {
+                  "status": "VALID",
+                  "codingPlanQuotaInfo": {
+                    "per5HourUsedQuota": 38,
+                    "per5HourTotalQuota": 100,
+                    "perWeekUsedQuota": 500,
+                    "perWeekTotalQuota": 1000,
+                    "perBillMonthUsedQuota": 950,
+                    "perBillMonthTotalQuota": 1000
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "expect": [
+      {
+        "used": 38,
+        "remaining": 62,
+        "title": "5 小时"
+      },
+      {
+        "used": 50,
+        "remaining": 50,
+        "title": "每周"
+      },
+      {
+        "used": 95,
+        "remaining": 5,
+        "title": "账单月"
+      }
+    ]
+  },
+  {
+    "id": "ark_agent",
+    "payload": {
+      "Result": {
+        "QuotaName": "订阅积分",
+        "AFPFiveHour": {
+          "Used": 1.25,
+          "Quota": 10,
+          "ResetTime": 1794900000000
+        },
+        "AFPWeekly": {
+          "Used": 60,
+          "Quota": 100
+        },
+        "AFPMonthly": {
+          "Used": 0,
+          "Quota": 200
+        },
+        "CurrentTotal": {
+          "Used": 99,
+          "Quota": 999
+        }
+      }
+    },
+    "expect": [
+      {
+        "used": 12.5,
+        "remaining": 87.5,
+        "title": "5 小时"
+      },
+      {
+        "used": 60,
+        "remaining": 40,
+        "title": "近一周"
+      },
+      {
+        "used": 0,
+        "remaining": 100,
+        "title": "近一月"
+      }
+    ]
+  },
+  {
+    "id": "mimo",
+    "payload": {
+      "object": "token_plan",
+      "plan_code": "pro",
+      "period": {
+        "end_at": "2026-12-17 00:00:00"
+      },
+      "quota": {
+        "total_credits": 100,
+        "used_credits": 25,
+        "remaining_credits": 75
+      }
+    },
+    "expect": [
+      {
+        "used": 25,
+        "remaining": 75,
+        "title": "套餐积分",
+        "contains": "积分"
+      }
+    ]
+  },
+  {
+    "id": "spark",
+    "payload": {
+      "code": 0,
+      "data": {
+        "rows": [
+          {
+            "id": 71,
+            "name": "私有套餐名称",
+            "status": 1,
+            "expiresAt": "2026-12-17 00:00:00",
+            "apiKey": "must-not-be-exposed-key",
+            "codingPlanUsageDTO": {
+              "rp5hUsage": 60,
+              "rp5hLimit": 6000,
+              "rpwUsage": 450,
+              "rpwLimit": 45000,
+              "packageUsage": 900,
+              "packageLimit": 90000,
+              "packageLeft": 89100
+            }
+          }
+        ],
+        "total": 1
+      }
+    },
+    "expect": [
+      {
+        "used": 1,
+        "remaining": 99,
+        "title": "5 小时"
+      },
+      {
+        "used": 1,
+        "remaining": 99,
+        "title": "每周"
+      },
+      {
+        "used": 1,
+        "remaining": 99,
+        "title": "套餐总量"
+      }
+    ]
+  },
+  {
+    "id": "astron",
+    "payload": {
+      "code": 0,
+      "data": {
+        "seats": [
+          {
+            "id": 84,
+            "name": "private-seat-name",
+            "phone": "private-user-phone",
+            "apiKey": "must-not-be-exposed-key",
+            "apiSecret": "must-not-be-exposed-secret",
+            "usage": {
+              "usedPoints": 50,
+              "totalAuthorizedPoints": 200
+            }
+          },
+          {
+            "id": 85,
+            "name": "second-seat",
+            "usage": null
+          }
+        ],
+        "total": 2
+      }
+    },
+    "expect": [
+      {
+        "used": 25,
+        "remaining": 75,
+        "title": "private-seat-name",
+        "contains": "积分"
+      },
+      {
+        "used": null,
+        "remaining": null,
+        "title": "second-seat",
+        "contains": "尚无"
+      }
+    ]
+  },
+  {
+    "id": "deepseek",
+    "payload": {
+      "is_available": true,
+      "balance_infos": [
+        {
+          "currency": "CNY",
+          "total_balance": "100.50",
+          "topped_up_balance": "100",
+          "granted_balance": "0.50"
+        }
+      ]
+    },
+    "expect": [
+      {
+        "used": null,
+        "remaining": null,
+        "title": "DeepSeek",
+        "contains": "100.50 CNY"
+      }
+    ]
+  },
+  {
+    "id": "mimo_balance",
+    "payload": {
+      "object": "balance",
+      "balance_infos": [
+        {
+          "currency": "CNY",
+          "total_available": "500.50",
+          "cash_balance": "100.50",
+          "gift_balance": "20",
+          "frozen_balance": "5",
+          "credit_available": "380"
+        }
+      ]
+    },
+    "expect": [
+      {
+        "used": null,
+        "remaining": null,
+        "title": "MiMo",
+        "contains": "含冻结"
+      }
+    ]
+  }
+]
