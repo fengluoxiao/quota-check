@@ -8,6 +8,7 @@ final class KimiParserTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(cases.count, 8)
         for test in cases {
             let rows = try kimiWindows(test["payload"])
+            print("KIMI_DEBUG", test["name"] as? String ?? "", rows)
             let expected = test["expected"] as? [[String: Any]] ?? []
             XCTAssertEqual(rows.count, expected.count, test["name"] as? String ?? "")
             for (index, row) in rows.enumerated() {
