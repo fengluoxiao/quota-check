@@ -53,10 +53,13 @@ type Colors = {
   card: string;
   ink: string;
   muted: string;
+  tertiary: string;
   line: string;
   accent: string;
   soft: string;
   danger: string;
+  caution: string;
+  success: string;
 };
 function Field({ label, colors, ...props }: TextInputProps & { label: string; colors: Colors }) {
   return (
@@ -129,9 +132,26 @@ function WindowCard({
       <Text style={[styles.meta, { color: colors.muted }]}>{card.subtitle}</Text>
       {(['reset', 'credits'] as const).map((kind) =>
         (card.queries?.[kind] ?? []).map((query, index) => (
-          <View key={kind + index} style={styles.window}>
-            <Text style={[styles.windowTitle, { color: colors.muted }]}>{query.title}</Text>
-            <Text style={[styles.detail, { color: colors.ink }]}>{query.detail}</Text>
+          <View
+            key={kind + index}
+            style={[
+              styles.queryCard,
+              { backgroundColor: colors.background, borderColor: colors.line },
+            ]}
+          >
+            <Text style={[styles.queryLabel, { color: colors.muted }]}>{query.title}</Text>
+            <Text style={[styles.queryValue, { color: colors.ink }]}>
+              {query.detail.split('\n')[0] ?? ''}
+            </Text>
+            {query.detail
+              .split('\n')
+              .slice(1)
+              .filter(Boolean)
+              .map((line, lineIndex) => (
+                <Text key={lineIndex} style={[styles.detail, { color: colors.muted }]}>
+                  {line}
+                </Text>
+              ))}
             {!!query.expandedLines?.length && (
               <>
                 <Pressable
@@ -141,7 +161,7 @@ function WindowCard({
                   }
                   style={({ pressed }) => [styles.queryToggle, { opacity: pressed ? 0.7 : 1 }]}
                 >
-                  <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '600' }}>
+                  <Text style={[styles.queryToggleText, { color: colors.accent }]}>
                     {expandedQuery === kind + index ? '收起明细' : query.expandedTitle}
                   </Text>
                 </Pressable>
@@ -163,23 +183,44 @@ function WindowCard({
         <Text style={{ color: colors.danger }}>{card.error}</Text>
       ) : card.windows.length ? (
         card.windows.map((w, i) => (
-          <View key={i} style={styles.window}>
-            <Text style={[styles.windowTitle, { color: colors.muted }]}>{w.title}</Text>
-            <Text
-              style={[
-                styles.percentage,
-                { color: w.remaining !== null && w.remaining <= 10 ? colors.danger : colors.ink },
-              ]}
-            >
-              {w.remaining === null
-                ? card.kind === 'balance'
-                  ? '账户余额'
-                  : '未提供使用比例'
-                : '剩余 ' + w.remaining.toFixed(1) + '%'}
-              <Text style={[styles.used, { color: colors.muted }]}>
-                {w.used === null ? '' : '  已用 ' + w.used.toFixed(1) + '%'}
-              </Text>
-            </Text>
+          <View
+            key={i}
+            style={[
+              styles.window,
+              { backgroundColor: colors.background, borderColor: colors.line },
+            ]}
+          >
+            <View style={styles.windowHeader}>
+              <View style={styles.windowPrimary}>
+                <Text style={[styles.windowTitle, { color: colors.muted }]}>{w.title}</Text>
+                <Text
+                  style={[
+                    styles.percentage,
+                    {
+                      color:
+                        w.remaining === null
+                          ? colors.muted
+                          : w.remaining <= 10
+                            ? colors.danger
+                            : w.remaining <= 30
+                              ? colors.caution
+                              : colors.success,
+                    },
+                  ]}
+                >
+                  {w.remaining === null
+                    ? card.kind === 'balance'
+                      ? '账户余额'
+                      : '未提供使用比例'
+                    : '剩余 ' + w.remaining.toFixed(1) + '%'}
+                </Text>
+              </View>
+              {w.used !== null && (
+                <Text style={[styles.used, { color: colors.muted }]}>
+                  已用 {w.used.toFixed(1)}%
+                </Text>
+              )}
+            </View>
             {w.used !== null && (
               <View
                 accessibilityRole="progressbar"
@@ -207,8 +248,8 @@ function WindowCard({
         <View style={styles.subActions}>
           {(
             [
-              ['reset', '查询重置卡'],
-              ['credits', '查询点数'],
+              ['reset', '重置卡'],
+              ['credits', '点数'],
               ['refresh', '刷新快照'],
             ] as const
           ).map(([action, title]) => (
@@ -220,16 +261,26 @@ function WindowCard({
               onPress={() => onSubAction(card, action)}
               style={({ pressed }) => [
                 styles.subAction,
-                { backgroundColor: colors.soft, opacity: subActionBusy ? 0.5 : pressed ? 0.7 : 1 },
+                {
+                  backgroundColor: action === 'refresh' ? colors.accent : colors.soft,
+                  opacity: subActionBusy ? 0.5 : pressed ? 0.7 : 1,
+                },
               ]}
             >
-              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '600' }}>{title}</Text>
+              <Text
+                style={[
+                  styles.subActionText,
+                  { color: action === 'refresh' ? '#fff' : colors.accent },
+                ]}
+              >
+                {title}
+              </Text>
             </Pressable>
           ))}
         </View>
       )}
       {onSubAction && (
-        <Text style={[styles.detail, { color: colors.muted }]}>
+        <Text style={[styles.cardNote, { color: colors.tertiary }]}>
           按钮只读取或刷新快照；不会调用消耗重置卡的 reset-quota 接口。
         </Text>
       )}
@@ -246,20 +297,26 @@ function Screen() {
         card: '#1b1d22',
         ink: '#f2f3f7',
         muted: '#a2a8b4',
+        tertiary: '#737d8c',
         line: '#343943',
         accent: '#5195ff',
         soft: '#24364f',
         danger: '#ff8b87',
+        caution: '#ffd166',
+        success: '#6ccb5f',
       }
     : {
         background: '#f3f5f8',
         card: '#ffffff',
         ink: '#152238',
         muted: '#64748b',
+        tertiary: '#8592a6',
         line: '#dce2eb',
         accent: '#1769d5',
         soft: '#e8f0fd',
         danger: '#c63035',
+        caution: '#a35d00',
+        success: '#0f7b31',
       };
   const [data, setData] = useState<VaultData>(freshVault);
   const dataRef = useRef(data);
@@ -1307,13 +1364,30 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   list: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 20, gap: 14 },
-  card: { padding: 20, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth },
-  cardTitle: { fontSize: 20, fontWeight: '700' },
-  meta: { fontSize: 12, marginTop: 5, marginBottom: 6 },
-  window: { marginTop: 18, gap: 8 },
+  card: {
+    padding: 18,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 14,
+  },
+  cardTitle: { fontSize: 18, fontWeight: '700' },
+  meta: { fontSize: 12, marginTop: -8, lineHeight: 18 },
+  window: {
+    marginTop: 0,
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+  },
+  windowHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+  },
+  windowPrimary: { flex: 1, gap: 2 },
   windowTitle: { fontSize: 13, fontWeight: '600' },
-  percentage: { fontSize: 25, fontWeight: '700' },
-  used: { fontSize: 12, fontWeight: '400' },
+  percentage: { fontSize: 22, fontWeight: '600', lineHeight: 27 },
+  used: { fontSize: 12, fontWeight: '400', textAlign: 'right' },
   track: { height: 6, borderRadius: 3, overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3 },
   detail: { fontSize: 12 },
@@ -1327,9 +1401,35 @@ const styles = StyleSheet.create({
   },
   queryBar: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
   button: { paddingVertical: 14, paddingHorizontal: 18, borderRadius: 12, alignItems: 'center' },
-  subActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  subAction: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
-  queryToggle: { marginTop: 4 },
+  cardNote: { fontSize: 11, lineHeight: 17 },
+  subActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
+  subAction: {
+    minHeight: 32,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 8,
+    justifyContent: 'center',
+  },
+  subActionText: { fontSize: 12, fontWeight: '600', lineHeight: 20 },
+  queryCard: {
+    marginTop: 0,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 4,
+  },
+  queryLabel: { fontSize: 11, fontWeight: '500' },
+  queryValue: { fontSize: 18, fontWeight: '600', lineHeight: 23 },
+  queryToggle: {
+    marginTop: 3,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(127,127,127,0.22)',
+    backgroundColor: 'rgba(127,127,127,0.05)',
+  },
+  queryToggleText: { fontSize: 12, fontWeight: '600' },
   queryList: { gap: 6 },
   queryItem: {
     fontSize: 12,

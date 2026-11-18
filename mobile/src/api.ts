@@ -52,7 +52,27 @@ export function resetCreditCard(payload: unknown): UsageWindow {
   const details = ['可用重置卡次数：' + credits.available_count.toLocaleString('en-US')];
   const expandedLines: string[] = [];
   if (Array.isArray(credits.credits)) {
-    details.push('接口返回到期明细：' + credits.credits.length.toLocaleString('en-US') + ' 条');
+    const now = Date.now();
+    const expirations = credits.credits
+      .map((grant) => {
+        if (!isRecord(grant) || !grant.expires_at) return null;
+        const value = Number(grant.expires_at);
+        if (Number.isFinite(value) && String(grant.expires_at).trim())
+          return new Date(value > 1e11 ? value : value * 1000);
+        return new Date(String(grant.expires_at));
+      })
+      .filter((value): value is Date => value !== null && !Number.isNaN(value.getTime()));
+    if (expirations.length) {
+      const nearest = expirations.reduce((current, value) => {
+        const currentFuture = current.getTime() >= now;
+        const valueFuture = value.getTime() >= now;
+        if (currentFuture !== valueFuture) return currentFuture ? current : value;
+        return Math.abs(value.getTime() - now) < Math.abs(current.getTime() - now)
+          ? value
+          : current;
+      });
+      details.push('最近到期：' + formatTime(nearest.getTime() / 1000));
+    }
     credits.credits.forEach((grant, index) => {
       const time = isRecord(grant) && grant.expires_at ? formatTime(grant.expires_at) : '';
       expandedLines.push(

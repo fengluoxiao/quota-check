@@ -5,7 +5,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 from quota import QueryError, NoRedirect, validate_key, number, pretty_number, format_reset
 
 class Sub2APIError(QueryError):
@@ -36,6 +36,27 @@ def local_time(value):
     try:
         return datetime.fromisoformat(str(value).replace("Z","+00:00")).astimezone().strftime("%Y-%m-%d %H:%M %Z")
     except (ValueError,TypeError,OverflowError,OSError): return str(value)[:100]
+
+def _nearest_expiration(grants):
+    values=[]
+    for grant in grants if isinstance(grants,list) else []:
+        raw=grant.get("expires_at") if isinstance(grant,dict) else None
+        if raw is None or raw=="": continue
+        seconds=number(raw)
+        if seconds is not None:
+            if seconds>1e11: seconds/=1000
+            try: value=datetime.fromtimestamp(seconds,timezone.utc)
+            except (ValueError,OverflowError,OSError): continue
+        else:
+            try:
+                value=datetime.fromisoformat(str(raw).replace("Z","+00:00"))
+                if value.tzinfo is None: value=value.replace(tzinfo=timezone.utc)
+            except (ValueError,TypeError,OverflowError,OSError): continue
+        values.append(value)
+    if not values: return ""
+    now=datetime.now(timezone.utc)
+    nearest=min(values,key=lambda item:((item<now),abs(item-now)))
+    return "最近到期："+local_time(nearest.timestamp())
 
 def window_name(seconds, fallback="窗口"):
     seconds=number(seconds)
@@ -139,7 +160,8 @@ def reset_credit_card(payload):
     grants=credits.get("credits")
     expanded=[]
     if isinstance(grants,list):
-        lines.append("接口返回到期明细："+pretty_number(len(grants))+" 条")
+        nearest=_nearest_expiration(grants)
+        if nearest: lines.append(nearest)
         for index,grant in enumerate(grants,1):
             expires=local_time(grant.get("expires_at")) if isinstance(grant,dict) else ""
             expanded.append(f"#{index} · "+("到期："+expires if expires else "接口未返回到期时间"))
