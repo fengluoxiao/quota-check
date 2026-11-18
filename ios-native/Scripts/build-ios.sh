@@ -78,6 +78,6 @@ else
   rm -rf "$ipa_root"
   mkdir -p "$ipa_root/Payload/QuotaCheck.app"
   cp -R "$app/." "$ipa_root/Payload/QuotaCheck.app/"
-  ditto -c -k --sequesterRsrc --keepParent Payload "$out/QuotaCheck-ios-unsigned.ipa"
+  ditto -c -k --sequesterRsrc --keepParent "$ipa_root/Payload" "$out/QuotaCheck-ios-unsigned.ipa"
   rm -rf "$ipa_root"
 fi
