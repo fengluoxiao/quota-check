@@ -122,11 +122,14 @@ func parseProvider(id: String, payload: Any?, sealed: Bool = false) throws -> [P
         }
     } else if id == "mimo" {
         guard let quota = object(data["quota"]) else { throw QuotaError("MiMo 未返回套餐积分，请检查是否为 Token Plan Key。") }
-        var row = countWindow(title: "MiMo · 套餐积分", usedRaw: quota["used_credits"], totalRaw: quota["total_credits"], leftRaw: quota["remaining_credits"], unit: "积分")
-        if let row, let period = object(data["period"]), let end = text(period["end_at"]) {
-            row.details += "\n周期结束（UTC）：" + String(end.prefix(100))
+        if var row = countWindow(title: "MiMo · 套餐积分", usedRaw: quota["used_credits"], totalRaw: quota["total_credits"], leftRaw: quota["remaining_credits"], unit: "积分") {
+            if let period = object(data["period"]), let end = text(period["end_at"]) {
+                row.details += "\n周期结束（UTC）：" + String(end.prefix(100))
+            }
+            rows.append(row)
+        } else {
+            rows.append(nil)
         }
-        rows.append(row)
     } else if id == "ark_agent" {
         guard let result = object(data["Result"]) else { throw QuotaError("当前身份没有可用的个人版 Agent Plan 数据。") }
         for (key, label) in [("AFPFiveHour", "5 小时"), ("AFPDaily", "近一天"), ("AFPWeekly", "近一周"), ("AFPMonthly", "近一月")] {
@@ -185,9 +188,12 @@ func parseProvider(id: String, payload: Any?, sealed: Bool = false) throws -> [P
                 guard let usage = object(item["codingPlanUsageDTO"]) else { continue }
                 let title = sealed ? "星火套餐 #\(ident)" : "星火 · " + String((text(item["name"]) ?? "套餐 #\(ident)").prefix(120))
                 for (prefix, label) in [("rp5h", "5 小时"), ("rpw", "每周"), ("package", "套餐总量")] {
-                    var row = countWindow(title: "\(title) · \(label)", usedRaw: usage[prefix + "Usage"], totalRaw: usage[prefix + "Limit"], leftRaw: prefix == "package" ? usage["packageLeft"] : nil)
-                    if let row, let expires = text(item["expiresAt"]) { row.details += "\n套餐到期：" + String(expires.prefix(100)) }
-                    rows.append(row)
+                    if var row = countWindow(title: "\(title) · \(label)", usedRaw: usage[prefix + "Usage"], totalRaw: usage[prefix + "Limit"], leftRaw: prefix == "package" ? usage["packageLeft"] : nil) {
+                        if let expires = text(item["expiresAt"]) { row.details += "\n套餐到期：" + String(expires.prefix(100)) }
+                        rows.append(row)
+                    } else {
+                        rows.append(nil)
+                    }
                 }
             }
         }
