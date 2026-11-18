@@ -3,10 +3,10 @@
 <plist version="1.0">
 <dict>
   <key>application-identifier</key>
-  <string>com.fengluoxiao.quotacheck.native</string>
+  <string>ABCDEFGHIJ.com.fengluoxiao.quotacheck.native</string>
   <key>keychain-access-groups</key>
   <array>
-    <string>com.fengluoxiao.quotacheck.native</string>
+    <string>ABCDEFGHIJ.com.fengluoxiao.quotacheck.native</string>
   </array>
 </dict>
 </plist>
