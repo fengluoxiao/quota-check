@@ -52,7 +52,7 @@ enum VaultStore {
     static func writeKey(_ value: String, account: String = keychainAccount) throws {
         guard let data = value.data(using: .utf8) else { throw VaultFailure.invalid }
         if !usesKeychain {
-            let url = try fallbackKeyURL()
+            var url = try fallbackKeyURL()
             try data.write(to: url, options: [.atomic, .completeFileProtection])
             var values = URLResourceValues(); values.isExcludedFromBackup = true
             try url.setResourceValues(values)
