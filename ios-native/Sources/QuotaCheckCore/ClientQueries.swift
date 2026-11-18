@@ -109,6 +109,7 @@ func kimiWindows(_ payload: Any?) throws -> [UsageWindow] {
         let title = String(((text(data["name"]) ?? text(data["title"])) ?? fallback).prefix(160))
         result.append(UsageWindow(title: title, used: percent, remaining: percent == nil ? nil : 100 - percent!, reset: kimiReset(data), detail: details.joined(separator: " · ").isEmpty ? "接口未提供具体额度。" : details.joined(separator: " · ")))
     }
+    print("KIMI_ROWS_DEBUG", rows.count, result.count, rows, result)
     guard !result.isEmpty else { throw QuotaError("Kimi 未返回可用的套餐额度，请使用 Kimi Coding Plan Key。") }
     return result
 }
