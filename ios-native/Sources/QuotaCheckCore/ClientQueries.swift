@@ -24,7 +24,8 @@ func resetCreditCard(_ payload: Any?) throws -> UsageWindow {
             let currentFuture = current >= now, valueFuture = value >= now
             if currentFuture != valueFuture { return currentFuture }
             return abs(value.timeIntervalSince(now)) < abs(current.timeIntervalSince(now))
-        }) {
+        })
+        if let nearest {
             details.append("最近到期：\(formatTime(nearest.timeIntervalSince1970))")
         }
         for (index, raw) in grants.enumerated() {
