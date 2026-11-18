@@ -74,9 +74,10 @@ if [[ "$mode" == "simulator" ]]; then
   codesign --force --sign - "$app"
   zip -qry -1 "$out/QuotaCheck-ios-simulator-arm64.app.zip" "$app"
 else
-  mkdir -p "$out/PayloadDevice/QuotaCheck.app"
-  rm -rf "$out/PayloadDevice/QuotaCheck.app"; mkdir -p "$out/PayloadDevice/QuotaCheck.app"
-  cp -R "$app/." "$out/PayloadDevice/QuotaCheck.app/"
-  (cd "$out/PayloadDevice" && zip -qry -1 "$out/QuotaCheck-ios-unsigned.ipa" Payload)
-  rm -rf "$out/PayloadDevice"
+  ipa_root="$out/ipa"
+  rm -rf "$ipa_root"
+  mkdir -p "$ipa_root/Payload/QuotaCheck.app"
+  cp -R "$app/." "$ipa_root/Payload/QuotaCheck.app/"
+  ditto -c -k --sequesterRsrc --keepParent Payload "$out/QuotaCheck-ios-unsigned.ipa"
+  rm -rf "$ipa_root"
 fi
