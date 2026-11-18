@@ -35,7 +35,7 @@ enum VaultStore {
 
     static func readKey(account: String = keychainAccount) throws -> String? {
         if !usesKeychain {
-            let url = try fallbackKeyURL()
+            var url = try fallbackKeyURL()
             guard FileManager.default.fileExists(atPath: url.path) else { return nil }
             return try String(contentsOf: url, encoding: .utf8)
         }
