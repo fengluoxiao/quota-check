@@ -11,8 +11,8 @@ enum VaultStore {
     #endif
 
     private static func fallbackKeyURL() throws -> URL {
-        let parent = try storageURL()
-        return parent.appendingPathComponent("native-key.sqkey")
+        let file = try storageURL()
+        return file.deletingLastPathComponent().appendingPathComponent("native-key.sqkey")
     }
 
     static func storageURL() throws -> URL {
