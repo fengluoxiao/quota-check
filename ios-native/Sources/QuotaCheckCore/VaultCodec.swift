@@ -21,9 +21,9 @@ struct NativeVaultCodec {
   static let magic = Data([83,81,86,65,85,76,84,0])
   static let maxBytes = 2 * 1024 * 1024
   static func random(_ count: Int) throws -> Data {
-    var bytes = [UInt8](repeating: 0, count: count)
-    let status = bytes.withUnsafeMutableBytes { SecRandomCopyBytes(kSecRandomDefault, count, $0.baseAddress!) }
-    guard status == errSecSuccess else { throw VaultFailure.random }; return Data(bytes)
+    var generator = SystemRandomNumberGenerator()
+    let bytes = (0..<count).map { _ in UInt8.random(in: UInt8.min...UInt8.max, using: &generator) }
+    return Data(bytes)
   }
   static func key(mode: UInt8, secret: String, salt: Data) throws -> SymmetricKey {
     if mode == 2 {
