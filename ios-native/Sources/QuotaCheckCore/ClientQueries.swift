@@ -21,10 +21,10 @@ func resetCreditCard(_ payload: Any?) throws -> UsageWindow {
             return (grant["expires_at"], date)
         }
         if let nearest = expirations.map({ $0.1 }).reduce(into: Date?) { current, value in
-            guard let current else { $0 = value; return }
+            guard let current else { current = value; return }
             let currentFuture = current >= now, valueFuture = value >= now
-            if currentFuture != valueFuture { $0 = currentFuture ? current : value }
-            else { $0 = abs(value.timeIntervalSince(now)) < abs(current.timeIntervalSince(now)) ? value : current }
+            if currentFuture != valueFuture { current = currentFuture ? current : value }
+            else { current = abs(value.timeIntervalSince(now)) < abs(current.timeIntervalSince(now)) ? value : current }
         } {
             details.append("最近到期：\(formatTime(nearest.timeIntervalSince1970))")
         }
