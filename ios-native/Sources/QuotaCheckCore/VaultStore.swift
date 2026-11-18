@@ -36,8 +36,7 @@ enum VaultStore {
     static func writeKey(_ value: String, account: String = keychainAccount) throws {
         guard let data = value.data(using: .utf8) else { throw VaultFailure.invalid }
         var query = keychainQuery(account: account)
-        let attributes: [String: Any] = [kSecValueData as String: data, kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]
-        let status = SecItemAdd(query as CFDictionary, attributes as CFDictionary)
+        let status = SecItemAdd(query as CFDictionary, nil)
         if status == errSecDuplicateItem {
             let update: [String: Any] = [kSecValueData as String: data, kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]
             let updateStatus = SecItemUpdate(query as CFDictionary, update as CFDictionary)

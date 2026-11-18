@@ -20,12 +20,11 @@ func resetCreditCard(_ payload: Any?) throws -> UsageWindow {
             guard let date = parseExposedDate(grant["expires_at"]) else { return nil }
             return (grant["expires_at"], date)
         }
-        if let nearest = expirations.map({ $0.1 }).reduce(into: Date?) { current, value in
-            guard let current else { current = value; return }
+        let nearest = expirations.map({ $0.1 }).min(by: { current, value in
             let currentFuture = current >= now, valueFuture = value >= now
-            if currentFuture != valueFuture { current = currentFuture ? current : value }
-            else { current = abs(value.timeIntervalSince(now)) < abs(current.timeIntervalSince(now)) ? value : current }
-        } {
+            if currentFuture != valueFuture { return currentFuture }
+            return abs(value.timeIntervalSince(now)) < abs(current.timeIntervalSince(now))
+        }) {
             details.append("最近到期：\(formatTime(nearest.timeIntervalSince1970))")
         }
         for (index, raw) in grants.enumerated() {
@@ -166,7 +165,7 @@ final class SubClient: @unchecked Sendable {
     var pending = ""
     let transport: Transport
 
-    init(profile: Profile, transport: Transport = nativeTransport) throws {
+    init(profile: Profile, transport: @escaping Transport = nativeTransport) throws {
         self.url = try normalizeURL(profile.url ?? "")
         var value = profile
         value.url = self.url
