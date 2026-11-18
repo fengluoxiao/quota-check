@@ -22,13 +22,24 @@ fi
 
 c_sources=$(find "$root/Sources/QuotaVaultC" -type f -name '*.c' | sort)
 swift_sources=$(find "$root/Sources/QuotaCheckCore" "$root/Sources/QuotaCheckApp" -type f -name '*.swift' | sort)
+object_dir="$out/objects-$mode"; rm -rf "$object_dir"; mkdir -p "$object_dir"
+objects=()
+while IFS= read -r source; do
+  object="$object_dir/$(basename "${source%.c}").o"
+  clang -c "$source" -o "$object" -O2 -arch arm64 -isysroot "$sdk" -target "$target" \
+    -I "$root/Sources/QuotaVaultC" \
+    -I "$root/Sources/QuotaVaultC/include" \
+    -I "$root/Sources/QuotaVaultC/vendor/argon2/include" \
+    -DARGON2_NO_THREADS
+  objects+=("$object")
+done < <(printf '%s\n' "$c_sources")
 swiftc -parse-as-library -swift-version 5 -O -whole-module-optimization \
   -import-objc-header "$root/Sources/QuotaCheckCore/bridge.h" \
   -sdk "$sdk" -target "$target" \
   -I "$root/Sources/QuotaVaultC" \
   -I "$root/Sources/QuotaVaultC/include" \
   -I "$root/Sources/QuotaVaultC/vendor/argon2/include" \
-  $c_sources $swift_sources \
+  "${objects[@]}" $swift_sources \
   -o "$binary"
 
 app="$out/Payload/QuotaCheck.app"
