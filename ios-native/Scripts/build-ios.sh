@@ -23,6 +23,7 @@ fi
 c_sources=$(find "$root/Sources/QuotaVaultC" -type f -name '*.c' | sort)
 swift_sources=$(find "$root/Sources/QuotaCheckCore" "$root/Sources/QuotaCheckApp" -type f -name '*.swift' | sort)
 swiftc -parse-as-library -swift-version 5 -O -whole-module-optimization \
+  -import-objc-header "$root/Sources/QuotaCheckCore/bridge.h" \
   -sdk "$sdk" -target "$target" \
   -I "$root/Sources/QuotaVaultC" \
   -I "$root/Sources/QuotaVaultC/include" \

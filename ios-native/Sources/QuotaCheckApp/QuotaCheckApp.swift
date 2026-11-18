@@ -152,33 +152,28 @@ struct RootView: View {
     @ViewBuilder private var connectionForm: some View {
         if let profile = model.activeProfile(), profile.sealed {
             Section("已导入连接") { Text("已导入凭据只能查询，不能查看或再次导出。").font(.footnote).foregroundStyle(muted) }
-            return
-        }
-        switch model.vault.source {
-        case 0:
+        } else if model.vault.source == 0 {
             Section("GLM 连接") {
                 Picker("站点", selection: Binding(get: { model.form.site }, set: { selected in model.updateForm { $0.site = selected } })) { Text("智谱 BigModel").tag("cn"); Text("Z.ai Global").tag("global") }
-                SecureField("Coding Plan API Key", text: Binding(get: { model.form.key }, set: { model.updateForm { $0.key = $1 } }))
+                SecureField("Coding Plan API Key", text: Binding(get: { model.form.key }, set: { newValue in model.updateForm { $0.key = newValue } }))
             }
-        case 1:
+        } else if model.vault.source == 1 {
             Section("sub2api 管理员") {
-                TextField("站点地址", text: Binding(get: { model.form.url }, set: { model.updateForm { $0.url = $1 } })).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
-                TextField("管理员邮箱", text: Binding(get: { model.form.email }, set: { model.updateForm { $0.email = $1 } })).keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
-                SecureField("密码", text: Binding(get: { model.form.password }, set: { model.updateForm { $0.password = $1 } }))
-                Toggle("优先读取后台快照", isOn: Binding(get: { model.form.cached }, set: { model.updateForm { $0.cached = $1 } }))
-                if model.needsOTP { TextField("6 位登录验证码", text: Binding(get: { model.form.otp }, set: { model.updateForm { $0.otp = $1 } })).keyboardType(.numberPad) }
+                TextField("站点地址", text: Binding(get: { model.form.url }, set: { newValue in model.updateForm { $0.url = newValue } })).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                TextField("管理员邮箱", text: Binding(get: { model.form.email }, set: { newValue in model.updateForm { $0.email = newValue } })).keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
+                SecureField("密码", text: Binding(get: { model.form.password }, set: { newValue in model.updateForm { $0.password = newValue } }))
+                Toggle("优先读取后台快照", isOn: Binding(get: { model.form.cached }, set: { newValue in model.updateForm { $0.cached = newValue } }))
+                if model.needsOTP { TextField("6 位登录验证码", text: Binding(get: { model.form.otp }, set: { newValue in model.updateForm { $0.otp = newValue } })).keyboardType(.numberPad) }
             }
-        case 2:
-            Section("Kimi 连接") { SecureField("Coding Plan API Key", text: Binding(get: { model.form.key }, set: { model.updateForm { $0.key = $1 } })) }
-        default:
-            if let spec = model.activeService() {
-                Section(spec.label) {
-                    ForEach(spec.fields, id: \.key) { field in
-                        fieldView(field, value: Binding(get: { model.form.secret[field.key] ?? "" }, set: { model.updateForm { $0.secret[field.key] = $1 } }))
-                    }
+        } else if model.vault.source == 2 {
+            Section("Kimi 连接") { SecureField("Coding Plan API Key", text: Binding(get: { model.form.key }, set: { newValue in model.updateForm { $0.key = newValue } })) }
+        } else if let spec = model.activeService() {
+            Section(spec.label) {
+                ForEach(spec.fields, id: \.key) { field in
+                    fieldView(field, value: Binding(get: { model.form.secret[field.key] ?? "" }, set: { newValue in model.updateForm { $0.secret[field.key] = newValue } }))
                 }
-                Section { Text(spec.help).font(.footnote).foregroundStyle(muted) }
             }
+            Section { Text(spec.help).font(.footnote).foregroundStyle(muted) }
         }
     }
 
@@ -198,13 +193,13 @@ struct RootView: View {
                     if !model.fileError.isEmpty { Text(model.fileError).foregroundStyle(.red).font(.footnote) }
                 }
                 Section {
-                    Button(model.isImport ? "解密并导入" : "准备导出") { Task { await model.finishFile(); if model.exportedFile() != nil { model.fileTask = nil; exportOpen = true } } }.disabled(model.busy)
+                    Button(isImport ? "解密并导入" : "准备导出") { Task { await model.finishFile(); if model.exportedFile() != nil { model.fileTask = nil; exportOpen = true } } }.disabled(model.busy)
                     Button("取消", role: .cancel) { model.fileTask = nil; model.filePassword = ""; model.fileConfirm = ""; model.fileError = "" }
                 } footer: {
-                    Text(model.isImport ? "导入后不提供明文查看或再次导出。拥有文件密码或控制运行环境的人仍有提取凭据的条件。" : "导出使用独立文件密码保护跨电脑文件。")
+                    Text(isImport ? "导入后不提供明文查看或再次导出。拥有文件密码或控制运行环境的人仍有提取凭据的条件。" : "导出使用独立文件密码保护跨电脑文件。")
                 }
             }
-            .navigationTitle(model.isImport ? "导入加密连接" : "保存加密连接")
+            .navigationTitle(isImport ? "导入加密连接" : "保存加密连接")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
