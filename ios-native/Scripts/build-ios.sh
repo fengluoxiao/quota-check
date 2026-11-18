@@ -25,6 +25,7 @@ swift_sources=$(find "$root/Sources/QuotaCheckCore" "$root/Sources/QuotaCheckApp
 swiftc -parse-as-library -swift-version 5 -O -whole-module-optimization \
   -sdk "$sdk" -target "$target" \
   -I "$root/Sources/QuotaVaultC" \
+  -I "$root/Sources/QuotaVaultC/include" \
   -I "$root/Sources/QuotaVaultC/vendor/argon2/include" \
   $c_sources $swift_sources \
   -o "$binary"

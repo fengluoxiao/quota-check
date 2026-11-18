@@ -8,7 +8,7 @@ let package = Package(
         .target(
             name: "QuotaVaultC",
             path: "Sources/QuotaVaultC",
-            publicHeadersPath: ".",
+            publicHeadersPath: "include",
             cSettings: [.define("ARGON2_NO_THREADS"), .headerSearchPath("vendor/argon2/include")]
         ),
         .target(

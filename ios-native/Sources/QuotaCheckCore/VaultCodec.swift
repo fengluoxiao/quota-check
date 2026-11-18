@@ -1,6 +1,7 @@
 import Foundation
 import CryptoKit
 import Security
+import QuotaVaultC
 
 enum VaultFailure: Error, LocalizedError {
   case invalid, unsupported, windows, password, decrypt, random, kdf
