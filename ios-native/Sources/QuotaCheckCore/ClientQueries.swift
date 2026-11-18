@@ -114,7 +114,7 @@ func kimiWindows(_ payload: Any?) throws -> [UsageWindow] {
 }
 
 private func kimiAmount(_ value: Any?) -> Double? {
-    guard !(value is Bool), !(value is NSNull) else { return nil }
+    guard !isBoolValue(value), !(value is NSNull) else { return nil }
     if let text = value as? String, !text.trimmingCharacters(in: .whitespaces).isEmpty, let value = Double(text), value.isFinite, value >= 0 { return value }
     if let value = value as? NSNumber, value.doubleValue.isFinite, value.doubleValue >= 0 { return value.doubleValue }
     return nil

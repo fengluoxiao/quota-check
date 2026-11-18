@@ -24,7 +24,7 @@ func number(_ value: Any?, negative: Bool = false) -> Double? {
 func isBoolValue(_ value: Any?) -> Bool {
     if value is Bool { return true }
     guard let number = value as? NSNumber else { return false }
-    return number.isBoolNumber
+    return String(cString: number.objCType) == "B"
 }
 
 extension NSNumber {
