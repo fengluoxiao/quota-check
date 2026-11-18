@@ -310,25 +310,35 @@ final class AppModel: ObservableObject {
     private func nativeHealthCheck() async {
         var report: JSON = ["ok": false, "stage": "start"]
         let probe = "quota-check.native.probe." + String(Int(Date().timeIntervalSince1970 * 1000))
+        var stage = "start"
         do {
             let secret = try VaultStore.generateKey()
+            stage = "generate-key"; report["stage"] = stage
             try VaultStore.writeKey(secret, account: probe)
-            report["stage"] = "keychain"; report["keychain"] = try VaultStore.readKey(account: probe) == secret
+            stage = "keychain"; report["stage"] = stage
+            report["keychain"] = try VaultStore.readKey(account: probe) == secret
             try VaultStore.deleteKey(account: probe)
+            stage = "signing"; report["stage"] = stage
             let sha = try NativeHashCodec.sha256("quota-check")
             let hmac = try NativeHashCodec.hmacSHA256("74657374", "quota-check")
             report["signing"] = sha == "d80211816271a3ca9c788e8be5c52c0e62c76b85f8eea3564d2860846641a928" && hmac == "3792c792c75b5f8ca269a1a30c792c850f815b9cb2701a671a46c1401fa732db"
+            stage = "crypto"; report["stage"] = stage
             let plain = try encodeJSON(freshVault().jsonValue())
             let portable = try NativeVaultCodec.seal(plain, mode: 1, secret: secret)
             report["crypto"] = try NativeVaultCodec.open(portable, secret: secret) == plain
+            stage = "storage"; report["stage"] = stage
             let temporary = try NativeVaultCodec.seal(plain, mode: 2, secret: secret)
             try VaultStore.writeStorage(temporary)
             report["storage"] = try VaultStore.readStorage() == temporary
             try VaultStore.deleteStorage()
+            stage = "provider-ui"; report["stage"] = stage
             report["providerUI"] = services.count
             report["ok"] = report["keychain"] as? Bool == true && report["signing"] as? Bool == true && report["crypto"] as? Bool == true && report["storage"] as? Bool == true && services.count == 9
             report["stage"] = "complete"
-        } catch { report["stage"] = "failed" }
+        } catch {
+            report["stage"] = stage
+            report["error"] = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+        }
         let url = try? FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true).appendingPathComponent("native-health.json")
         if let url, let data = try? JSONSerialization.data(withJSONObject: report, options: [.sortedKeys, .prettyPrinted]) {
             try? data.write(to: url)
