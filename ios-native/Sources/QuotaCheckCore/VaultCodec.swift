@@ -1,7 +1,9 @@
 import Foundation
 import CryptoKit
 import Security
+#if SWIFT_PACKAGE
 import QuotaVaultC
+#endif
 
 enum VaultFailure: Error, LocalizedError {
   case invalid, unsupported, windows, password, decrypt, random, kdf

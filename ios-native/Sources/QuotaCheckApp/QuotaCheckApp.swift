@@ -1,7 +1,6 @@
 #if os(iOS)
 import SwiftUI
 import UniformTypeIdentifiers
-import QuotaCheckCore
 
 @main
 struct QuotaCheckApp: App {
