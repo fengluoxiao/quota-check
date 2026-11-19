@@ -41,8 +41,9 @@ class ExtraTests(unittest.TestCase):
                 self.assertEqual(spec['method'],'POST' if name=='ark_agent' else 'GET')
         spec=p.request_spec('mimo_balance','daily',profile,now=datetime(2026,11,18,17,tzinfo=timezone.utc))
         self.assertIn('start_date=2026-11-13&end_date=2026-11-19',spec['url'])
-        self.assertEqual(p.request_spec('glm','reset',profile)['headers']['Authorization'],'Bearer console-only')
-        with self.assertRaises(quota.QueryError):p.request_spec('glm','reset',{'key':'model-key','site':'cn'})
+        self.assertEqual(p.request_spec('glm','boost',profile)['headers']['Authorization'],'Bearer console-only')
+        with self.assertRaises(quota.QueryError):p.request_spec('glm','boost',{'key':'model-key','site':'cn'})
+        with self.assertRaises(quota.QueryError):p.request_spec('glm','reset',profile)
 
     def test_errors_do_not_echo_credentials(self):
         class Client:

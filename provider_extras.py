@@ -9,7 +9,7 @@ import quota
 import service_providers as providers
 
 ACTIONS = {
-    'glm': [('reset', '重置卡'), ('boost', '加油包')],
+    'glm': [('boost', '加油包')],
     'claude': [('reset', '重置次数'), ('spend', '额外消费')],
     'mimo_balance': [('daily', '近7天用量'), ('bill', '近7天账单')],
     'ark_agent': [('subscription', '订阅到期')],
@@ -43,9 +43,9 @@ def request_spec(name, action, profile, *, now=None):
     if name == 'glm':
         if profile.get('site') != 'cn': raise quota.QueryError('当前只核实了国内 GLM 控制台的权益查询接口。')
         token = profile.get('console_token', '')
-        if not token: raise quota.QueryError('查询重置卡和加油包需要 GLM 网页控制台 Authorization，请先添加控制台凭据。')
+        if not token: raise quota.QueryError('查询加油包需要 GLM 网页控制台 Authorization，请先添加控制台凭据。')
         headers['Authorization'] = providers.header_secret(token)
-        route = '/api/biz/customer-package-reset/list?targetType=PERSONAL' if action == 'reset' else '/api/biz/boosterPack/usage/remaining'
+        route = '/api/biz/boosterPack/usage/remaining'
         url = 'https://www.bigmodel.cn' + route
     elif name == 'claude':
         headers.update(Authorization='Bearer ' + quota.validate_key(profile.get('secret', '')),
@@ -60,6 +60,7 @@ def request_spec(name, action, profile, *, now=None):
     return {'url': url, 'method': 'GET', 'headers': headers}
 
 def parse(name, action, payload, *, now=None):
+    if action not in dict(ACTIONS.get(name, [])):raise quota.QueryError('此服务不支持该查询。')
     if not isinstance(payload, dict): raise quota.QueryError('附加信息响应格式异常。')
     if payload.get('error') or payload.get('success') is False:raise quota.QueryError('附加查询被拒绝，请检查该服务的凭据与权限。')
     now = now or datetime.now(timezone.utc)
@@ -78,26 +79,13 @@ def parse(name, action, payload, *, now=None):
         if payload.get('success') is not True or payload.get('code') != 200 or not isinstance(payload.get('data'), dict):
             raise quota.QueryError('GLM 控制台会话失效或无查询权限，请更新控制台凭据。')
         data = payload['data']
-        if action == 'reset':
-            rows = []
-            for key, title in [('fiveHourResets', 'GLM · 5 小时重置卡'), ('weekResets', 'GLM · 周重置卡')]:
-                grants = data.get(key)
-                if not isinstance(grants, list): continue
-                if len(grants)>1000 or any(not isinstance(g,dict) or type(g.get('available')) is not bool for g in grants):raise quota.QueryError('GLM 重置卡明细无效。')
-                valid = [g for g in grants if isinstance(g, dict) and g.get('available') is True]
-                times = sorted(t for g in valid if (t := date_value(g.get('expireTime'))) is not None)
-                detail = ['最近到期：' + time_text(times[0].isoformat())] if times else []
-                expanded = ['#' + str(i) + ' · ' + ('到期：' + time_text(g.get('expireTime')) if time_text(g.get('expireTime')) else '接口未返回有效到期时间') for i, g in enumerate(valid, 1)]
-                rows.append(result(title, str(len(valid)) + ' 次可用', detail, expanded))
-            if rows: return rows
-        else:
-            total, left = providers.amount(data.get('totalMagnitude')), providers.amount(data.get('totalBalance'))
-            if total is not None or left is not None:
-                lines = []
-                if total is not None: lines.append('总额度：' + quota.pretty_number(total))
-                if left is not None: lines.append('剩余额度：' + quota.pretty_number(left))
-                if time_text(data.get('nearestExpireTime')): lines.append('最近到期：' + time_text(data['nearestExpireTime']))
-                return [result('GLM · 加油包', '剩余 ' + quota.pretty_number(left) if left is not None else '接口未返回剩余额度', lines)]
+        total, left = providers.amount(data.get('totalMagnitude')), providers.amount(data.get('totalBalance'))
+        if total is not None or left is not None:
+            lines = []
+            if total is not None: lines.append('总额度：' + quota.pretty_number(total))
+            if left is not None: lines.append('剩余额度：' + quota.pretty_number(left))
+            if time_text(data.get('nearestExpireTime')): lines.append('最近到期：' + time_text(data['nearestExpireTime']))
+            return [result('GLM · 加油包', '剩余 ' + quota.pretty_number(left) if left is not None else '接口未返回剩余额度', lines)]
     elif name == 'claude' and action == 'reset':
         data = payload.get('cedar_ember')
         if not isinstance(data, dict) or not isinstance(data.get('eligible'), bool):

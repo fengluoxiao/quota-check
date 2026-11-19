@@ -27,9 +27,10 @@ final class ProviderExtrasTests: XCTestCase {
 
     func testRequestsUseOnlyReadEndpoints() throws {
         var profile = Profile(kind: "glm"); profile.site = "cn"; profile.consoleToken = "Bearer console-only"
-        let glm = try ProviderExtras.request("glm", "reset", profile)
+        let glm = try ProviderExtras.request("glm", "boost", profile)
         XCTAssertEqual(glm.headers["Authorization"], "Bearer console-only")
         XCTAssertEqual(glm.method, "GET")
+        XCTAssertThrowsError(try ProviderExtras.request("glm", "reset", profile))
         profile.kind = "mimo_balance"; profile.secret = "test-only"
         let request = try ProviderExtras.request("mimo_balance", "daily", profile, now: Date(timeIntervalSince1970: 1795021200))
         XCTAssertTrue(request.url.contains("start_date=2026-11-13&end_date=2026-11-19"))

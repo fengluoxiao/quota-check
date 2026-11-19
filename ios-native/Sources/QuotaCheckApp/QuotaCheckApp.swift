@@ -156,8 +156,8 @@ struct RootView: View {
             Section("GLM 连接") {
                 Picker("站点", selection: Binding(get: { model.form.site }, set: { selected in model.updateForm { $0.site = selected } })) { Text("智谱 BigModel").tag("cn"); Text("Z.ai Global").tag("global") }
                 SecureField("Coding Plan API Key", text: Binding(get: { model.form.key }, set: { newValue in model.updateForm { $0.key = newValue } }))
-                SecureField("网页控制台 Authorization（查询重置卡/加油包，可选）", text: $model.form.consoleToken)
-                Text("国内站点使用网页控制台凭据读取重置卡与加油包；与套餐 Key 分开加密保存。已保存的凭据不回填。").font(.footnote).foregroundStyle(muted)
+                SecureField("网页控制台 Authorization（查询加油包，可选）", text: $model.form.consoleToken)
+                Text("国内站点使用网页控制台凭据读取加油包；与套餐 Key 分开加密保存。已保存的凭据不回填。").font(.footnote).foregroundStyle(muted)
             }
         } else if model.vault.source == 1 {
             Section("sub2api 管理员") {

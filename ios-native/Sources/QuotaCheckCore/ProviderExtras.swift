@@ -4,7 +4,7 @@ import CoreFoundation
 enum ProviderExtras {
     static func actions(_ name: String) -> [(String, String)] {
         switch name {
-        case "glm": return [("reset", "重置卡"), ("boost", "加油包")]
+        case "glm": return [("boost", "加油包")]
         case "claude": return [("reset", "重置次数"), ("spend", "额外消费")]
         case "mimo_balance": return [("daily", "近7天用量"), ("bill", "近7天账单")]
         case "ark_agent": return [("subscription", "订阅到期")]
@@ -59,9 +59,9 @@ enum ProviderExtras {
             return RequestSpec(url: "https://ark.cn-beijing.volcengineapi.com/?Action=ListSubscribeTrade&Version=2024-01-01", method: "POST", headers: headers, body: body)
         } else if name == "glm" {
             guard profile.site == "cn" else { throw QuotaError("当前只核实了国内 GLM 控制台的权益查询接口。") }
-            guard let token = profile.consoleToken, !token.isEmpty else { throw QuotaError("请在设置中添加 GLM 网页控制台 Authorization，再查询重置卡或加油包。") }
+            guard let token = profile.consoleToken, !token.isEmpty else { throw QuotaError("请在设置中添加 GLM 网页控制台 Authorization，再查询加油包。") }
             headers["Authorization"] = try headerSecret(token)
-            url = "https://www.bigmodel.cn" + (action == "reset" ? "/api/biz/customer-package-reset/list?targetType=PERSONAL" : "/api/biz/boosterPack/usage/remaining")
+            url = "https://www.bigmodel.cn/api/biz/boosterPack/usage/remaining"
         } else if name == "claude" {
             headers["Authorization"] = "Bearer " + (try validateKey(profile.secret ?? ""))
             headers["anthropic-beta"] = "oauth-2025-04-20"
@@ -89,6 +89,7 @@ enum ProviderExtras {
     }
 
     static func parse(_ name: String, _ action: String, _ payload: Any?, now: Date = Date()) throws -> [UsageWindow] {
+        guard actions(name).contains(where: { $0.0 == action }) else { throw QuotaError("此服务不支持该查询。") }
         guard let payload = object(payload) else { throw QuotaError("附加信息响应格式异常。") }
         if flag(payload["success"]) == false || (payload["error"] != nil && !(payload["error"] is NSNull)) { throw QuotaError("附加查询被拒绝，请检查该服务的凭据与权限。") }
         if name == "ark_agent" {
@@ -106,30 +107,14 @@ enum ProviderExtras {
             guard flag(payload["success"]) == true, number(payload["code"]) == 200, let data = object(payload["data"]) else {
                 throw QuotaError("GLM 控制台会话失效或无查询权限，请更新控制台凭据。")
             }
-            if action == "reset" {
-                var rows: [UsageWindow] = []
-                for (key, title) in [("fiveHourResets", "GLM · 5 小时重置卡"), ("weekResets", "GLM · 周重置卡")] {
-                    guard let grants = array(data[key]) else { continue }
-                    guard grants.count <= 1000, grants.allSatisfy({ object($0).flatMap { flag($0["available"]) } != nil }) else { throw QuotaError("GLM 重置卡明细无效。") }
-                    let valid = grants.compactMap(object).filter { flag($0["available"]) == true }
-                    let dates = valid.compactMap { date($0["expireTime"]) }.sorted()
-                    let lines = dates.first.map { ["最近到期：" + time($0)] } ?? []
-                    let expanded = valid.enumerated().map { index, grant in
-                        "#\(index + 1) · " + (date(grant["expireTime"]).map { "到期：" + time($0) } ?? "接口未返回有效到期时间")
-                    }
-                    rows.append(result(title, "\(valid.count) 次可用", lines, expanded))
-                }
-                if !rows.isEmpty { return rows }
-            } else {
-                let total = number(data["totalMagnitude"]), left = number(data["totalBalance"])
-                if (total != nil && total! < 0) || (left != nil && left! < 0) { throw QuotaError("GLM 加油包额度无效。") }
-                if total != nil || left != nil {
-                    var lines: [String] = []
-                    if let total, total >= 0 { lines.append("总额度：" + display(total)) }
-                    if let left, left >= 0 { lines.append("剩余额度：" + display(left)) }
-                    if let expires = date(data["nearestExpireTime"]) { lines.append("最近到期：" + time(expires)) }
-                    return [result("GLM · 加油包", left.map { "剩余 " + display($0) } ?? "接口未返回剩余额度", lines)]
-                }
+            let total = number(data["totalMagnitude"]), left = number(data["totalBalance"])
+            if (total != nil && total! < 0) || (left != nil && left! < 0) { throw QuotaError("GLM 加油包额度无效。") }
+            if total != nil || left != nil {
+                var lines: [String] = []
+                if let total, total >= 0 { lines.append("总额度：" + display(total)) }
+                if let left, left >= 0 { lines.append("剩余额度：" + display(left)) }
+                if let expires = date(data["nearestExpireTime"]) { lines.append("最近到期：" + time(expires)) }
+                return [result("GLM · 加油包", left.map { "剩余 " + display($0) } ?? "接口未返回剩余额度", lines)]
             }
         } else if name == "claude", action == "reset" {
             guard let data = object(payload["cedar_ember"]), let eligible = flag(data["eligible"]) else { throw QuotaError("当前 Claude 账号未返回重置权益，无法确认次数。") }

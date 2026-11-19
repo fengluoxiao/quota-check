@@ -26,10 +26,11 @@ for folder in ('windows','ios'):
         assert hashlib.sha256((assets/folder/name).read_bytes()).hexdigest()==expected
 ios_names=['QuotaCheck-ios-unsigned.ipa','QuotaCheck-ios-simulator-arm64.app.zip','ios-simulator.png','native-health.json','SHA256SUMS.txt']
 for name in ios_names:assert (assets/'ios'/name).is_file()
-body='''新增 GLM 重置卡与加油包、Claude 重置次数与额外消费、MiMo 近七天日用量与日账单、方舟个人订阅到期查询。Windows WinUI 3 和原生 SwiftUI iOS 同步支持。
+body='''新增 GLM 加油包、Claude 重置次数与额外消费、MiMo 近七天日用量与日账单、方舟个人订阅到期查询。Windows WinUI 3 和原生 SwiftUI iOS 同步支持。
 
 - iOS 恢复原 Bundle ID com.fengluoxiao.quotacheck、原应用图标与“额度查询”名称；加入旧 Expo 本机加密配置的已知 Keychain 别名迁移。覆盖安装仍需相同签名身份。
 
+- 按用户要求移除 GLM 重置卡查询，保留套餐 Key 的普通额度查询。
 - 卡片上的附加按钮按需读取，不兑换重置卡、不购买或续费、不调用模型；明细支持展开/收起。
 - GLM 国内站点需要额外的网页控制台 Authorization，和套餐 Key 分开加密保存。导入连接继续隐藏凭据，禁止再次导出。
 - Claude 重置查询为账号条件开放的 OAuth 权益；没有返回字段时明确提示，不显示虚构零值。额外消费保留接口计费单位，不当作钱包余额。
