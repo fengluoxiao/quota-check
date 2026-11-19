@@ -61,6 +61,7 @@ def request_spec(name, action, profile, *, now=None):
 
 def parse(name, action, payload, *, now=None):
     if not isinstance(payload, dict): raise quota.QueryError('附加信息响应格式异常。')
+    if payload.get('error') or payload.get('success') is False:raise quota.QueryError('附加查询被拒绝，请检查该服务的凭据与权限。')
     now = now or datetime.now(timezone.utc)
     if name == 'ark_agent':
         data = payload.get('Result')

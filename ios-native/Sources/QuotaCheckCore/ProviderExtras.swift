@@ -90,6 +90,7 @@ enum ProviderExtras {
 
     static func parse(_ name: String, _ action: String, _ payload: Any?, now: Date = Date()) throws -> [UsageWindow] {
         guard let payload = object(payload) else { throw QuotaError("附加信息响应格式异常。") }
+        if flag(payload["success"]) == false || (payload["error"] != nil && !(payload["error"] is NSNull)) { throw QuotaError("附加查询被拒绝，请检查该服务的凭据与权限。") }
         if name == "ark_agent" {
             guard object(object(payload["ResponseMetadata"])?["Error"]) == nil,
                   let data = object(payload["Result"]), let items = array(data["InfoList"]) else { throw QuotaError("方舟未返回订阅明细，请检查 ListSubscribeTrade 查询权限。") }

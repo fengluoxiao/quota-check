@@ -5,16 +5,18 @@ out="$root/build"
 mkdir -p "$out/Payload/QuotaCheck.app"
 mode="${IOS_BUILD_MODE:-simulator}"
 build_number="${IOS_BUILD_NUMBER:-1}"
-bundle_id="${IOS_BUNDLE_IDENTIFIER:-com.fengluoxiao.quotacheck.native}"
-version="${IOS_APP_VERSION:-2.1.0}"
+bundle_id="${IOS_BUNDLE_IDENTIFIER:-com.fengluoxiao.quotacheck}"
+version="${IOS_APP_VERSION:-2.1.1}"
 
 if [[ "$mode" == "simulator" ]]; then
   sdk="$(xcrun --sdk iphonesimulator --show-sdk-path)"
   target="arm64-apple-ios17.0-simulator"
+  platform="iphonesimulator"
   binary="$out/QuotaCheck-simulator"
 elif [[ "$mode" == "device" ]]; then
   sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
   target="arm64-apple-ios17.0"
+  platform="iphoneos"
   binary="$out/QuotaCheck-device"
 else
   printf 'IOS_BUILD_MODE must be simulator or device\n' >&2; exit 2
@@ -69,6 +71,25 @@ printf 'APPL????' > "$app/PkgInfo"
 /usr/libexec/PlistBuddy -c 'Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait' "$app/Info.plist"
 /usr/libexec/PlistBuddy -c 'Add :UISupportedInterfaceOrientations:1 string UIInterfaceOrientationLandscapeLeft' "$app/Info.plist"
 /usr/libexec/PlistBuddy -c 'Add :UISupportedInterfaceOrientations:2 string UIInterfaceOrientationLandscapeRight' "$app/Info.plist"
+/usr/libexec/PlistBuddy -c 'Add :UIDeviceFamily array' "$app/Info.plist"
+/usr/libexec/PlistBuddy -c 'Add :UIDeviceFamily:0 integer 1' "$app/Info.plist"
+/usr/libexec/PlistBuddy -c 'Add :UIDeviceFamily:1 integer 2' "$app/Info.plist"
+/usr/libexec/PlistBuddy -c 'Add :CFBundleSupportedPlatforms array' "$app/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :CFBundleSupportedPlatforms:0 string $([[ "$mode" == simulator ]] && echo iPhoneSimulator || echo iPhoneOS)" "$app/Info.plist"
+
+catalog="$out/AppAssets.xcassets"
+python3 "$root/Scripts/build-icons.py" "$root/../mobile/assets/icon.png" "$catalog"
+xcrun actool "$catalog" --compile "$app" --platform "$platform" --minimum-deployment-target 17.0 \
+  --target-device iphone --target-device ipad --app-icon AppIcon --output-partial-info-plist "$out/icon-info-$mode.plist"
+python3 - "$app/Info.plist" "$out/icon-info-$mode.plist" <<'PY'
+import plistlib,sys
+from pathlib import Path
+path=Path(sys.argv[1]);info=plistlib.loads(path.read_bytes());icons=plistlib.loads(Path(sys.argv[2]).read_bytes())
+info.update(icons)
+assert info.get('CFBundleIcons',{}).get('CFBundlePrimaryIcon',{}).get('CFBundleIconName')=='AppIcon'
+assert (path.parent/'Assets.car').is_file()
+path.write_bytes(plistlib.dumps(info))
+PY
 
 if [[ "$mode" == "simulator" ]]; then
   codesign --force --sign - "$app"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
-bundle_id="${IOS_BUNDLE_IDENTIFIER:-com.fengluoxiao.quotacheck.native}"
+bundle_id="${IOS_BUNDLE_IDENTIFIER:-com.fengluoxiao.quotacheck}"
 app="$root/build/Payload/QuotaCheck.app"
 out="$root/build"
 simulator="${IOS_SMOKE_UDID:-$(xcrun simctl list devices available -j | python3 -c 'import json,sys;d=json.load(sys.stdin);choices=[v for k,a in d["devices"].items() if "iOS-27" in k for v in a if v.get("isAvailable") and v["name"].startswith("iPhone")];assert choices,"No iOS 27 simulator";print(choices[0]["udid"])')}"

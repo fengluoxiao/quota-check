@@ -3,7 +3,7 @@ const config: ExpoConfig = {
   name: 'QuotaCheck',
   extra: { nativeSmokeCheck: process.env.NATIVE_SMOKE_CHECK === '1' },
   slug: 'quota-check',
-  version: '2.1.0',
+  version: '2.1.1',
   scheme: 'quota-check',
   orientation: 'default',
   userInterfaceStyle: 'automatic',

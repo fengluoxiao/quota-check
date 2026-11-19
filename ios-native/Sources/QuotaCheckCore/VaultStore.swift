@@ -111,10 +111,42 @@ enum VaultStore {
 
     static func load() throws -> VaultData {
         guard let blob = try readStorage() else { return freshVault() }
-        guard let key = try readKey() else { throw QuotaError("本机连接密钥不可用，请导入备份或清除本机连接。") }
-        let plaintext = try NativeVaultCodec.open(blob, secret: key)
-        let decoded = try decodeJSON(plaintext)
-        return try validateVault(decoded)
+        if let key = try readKey(), let restored = try? decryptVault(blob, key: key) { return restored }
+        // An in-place upgrade from Expo keeps the encrypted file, but its key uses
+        // Expo's Data account and :no-auth service alias. Read only these known aliases.
+        if usesKeychain, let legacy = try readLegacyExpoKey() {
+            let restored = try decryptVault(blob, key: legacy)
+            try writeKey(legacy)
+            return restored
+        }
+        throw QuotaError("本机连接密钥不可用，请导入备份或清除本机连接。")
+    }
+
+    private static func decryptVault(_ blob: Data, key: String) throws -> VaultData {
+        try validateVault(decodeJSON(NativeVaultCodec.open(blob, secret: key)))
+    }
+
+    static func legacyExpoQueries() -> [[String: Any]] {
+        let account = Data("quota-check.device-key.v1".utf8)
+        return ["com.fengluoxiao.quotacheck.vault:no-auth", "com.fengluoxiao.quotacheck.vault"].map { service in
+            [kSecClass as String: kSecClassGenericPassword,
+             kSecAttrService as String: service,
+             kSecAttrAccount as String: account,
+             kSecAttrGeneric as String: account,
+             kSecReturnData as String: true,
+             kSecMatchLimit as String: kSecMatchLimitOne]
+        }
+    }
+
+    private static func readLegacyExpoKey() throws -> String? {
+        for query in legacyExpoQueries() {
+            var item: CFTypeRef?
+            let status = SecItemCopyMatching(query as CFDictionary, &item)
+            if status == errSecItemNotFound { continue }
+            guard status == errSecSuccess else { throw QuotaError("无法访问旧版 Keychain 连接密钥，请确认签名身份或导入备份。") }
+            if let data = item as? Data, let key = validKey(data) { return key }
+        }
+        return nil
     }
 
     static func save(_ value: VaultData, replace: Bool = false) throws {

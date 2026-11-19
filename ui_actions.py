@@ -403,6 +403,7 @@ class VaultActions:
         combined=cards+[card for values in self.extra_results.values() for card in values]
         self.render_cards(combined,{"cards":combined})
         actions=provider_extras.ACTIONS.get(name,[])
+        if name=="glm" and self.Site.SelectedIndex==1:actions=[]
         if not actions:return
         panel=StackPanel();panel.Orientation=Orientation.Horizontal;panel.Spacing=8
         for action,label in actions:

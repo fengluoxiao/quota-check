@@ -18,6 +18,7 @@ assert len(windows['providers'])==9 and all(p['ok'] for p in windows['providers'
 assert all(health.get(k) is True for k in ('ok','crypto','storage','signing','importPersistence'))
 assert health.get('keychain') is True or health.get('keychainFallback') is True
 assert health.get('providerUI')==9
+assert health.get('bundleIdentifier')=='com.fengluoxiao.quotacheck' and health.get('appIcon') is True
 for folder in ('windows','ios'):
     for line in (assets/folder/'SHA256SUMS.txt').read_text().splitlines():
         expected,name=line.split(maxsplit=1);name=name.strip().lstrip('*')
@@ -26,6 +27,8 @@ for folder in ('windows','ios'):
 ios_names=['QuotaCheck-ios-unsigned.ipa','QuotaCheck-ios-simulator-arm64.app.zip','ios-simulator.png','native-health.json','SHA256SUMS.txt']
 for name in ios_names:assert (assets/'ios'/name).is_file()
 body='''新增 GLM 重置卡与加油包、Claude 重置次数与额外消费、MiMo 近七天日用量与日账单、方舟个人订阅到期查询。Windows WinUI 3 和原生 SwiftUI iOS 同步支持。
+
+- iOS 恢复原 Bundle ID com.fengluoxiao.quotacheck、原应用图标与“额度查询”名称；加入旧 Expo 本机加密配置的已知 Keychain 别名迁移。覆盖安装仍需相同签名身份。
 
 - 卡片上的附加按钮按需读取，不兑换重置卡、不购买或续费、不调用模型；明细支持展开/收起。
 - GLM 国内站点需要额外的网页控制台 Authorization，和套餐 Key 分开加密保存。导入连接继续隐藏凭据，禁止再次导出。

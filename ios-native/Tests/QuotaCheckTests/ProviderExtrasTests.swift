@@ -1,4 +1,5 @@
 import XCTest
+import Security
 @testable import QuotaCheckCore
 
 final class ProviderExtrasTests: XCTestCase {
@@ -43,5 +44,14 @@ final class ProviderExtrasTests: XCTestCase {
         let vault = try validateVault(raw)
         XCTAssertEqual(try validateVault(vault.jsonValue()).profiles["glm"]?.consoleToken, "Bearer test-console")
         XCTAssertThrowsError(try exportOwned(lockImported(raw)))
+    }
+
+    func testLegacyExpoKeychainQueryUsesOriginalAliasesAndDataAccount() {
+        let queries = VaultStore.legacyExpoQueries()
+        XCTAssertEqual(queries.count, 2)
+        XCTAssertEqual(queries[0][kSecAttrService as String] as? String, "com.fengluoxiao.quotacheck.vault:no-auth")
+        XCTAssertEqual(queries[1][kSecAttrService as String] as? String, "com.fengluoxiao.quotacheck.vault")
+        XCTAssertNotNil(queries[0][kSecAttrAccount as String] as? Data)
+        XCTAssertEqual(queries[0][kSecAttrAccount as String] as? Data, queries[0][kSecAttrGeneric as String] as? Data)
     }
 }

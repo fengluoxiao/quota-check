@@ -336,7 +336,9 @@ def launch(*, test_hook=None):
             for card in cards:
                 used = card["used"]
                 title = escape(card["title"], quote=True)
-                details = escape(card["details"], quote=True).replace("\n", "&#10;")
+                detail_text=card["details"]
+                if card.get("value") and detail_text.splitlines()[0]==card["value"]:detail_text="\n".join(detail_text.splitlines()[1:])
+                details = escape(detail_text, quote=True).replace("\n", "&#10;")
                 if used is None:
                     percentage = card.get("value") or ("账户余额" if card.get("kind")=="balance" else "接口未提供有效的使用比例")
                     bar = ""

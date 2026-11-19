@@ -173,7 +173,7 @@ final class AppModel: ObservableObject {
             }
             if vault.source != 1 {
                 updateStoredProfile(profile)
-                if !result.isEmpty { result[0].actions = ProviderExtras.actions(profile.kind).map { $0.0 } }
+                if !result.isEmpty { result[0].actions = profile.kind == "glm" && profile.site == "global" ? [] : ProviderExtras.actions(profile.kind).map { $0.0 } }
             }
             cards = result
             needsOTP = false
@@ -378,6 +378,10 @@ final class AppModel: ObservableObject {
                 && restored.profiles["kimi"]?.sealed == true && !blocked && !needsOTP && fileTask == nil && fileError.isEmpty
             stage = "provider-ui"; report["stage"] = stage
             report["providerUI"] = services.count
+            report["bundleIdentifier"] = Bundle.main.bundleIdentifier ?? ""
+            let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any]
+            let primary = icons?["CFBundlePrimaryIcon"] as? [String: Any]
+            report["appIcon"] = primary?["CFBundleIconName"] as? String == "AppIcon" && Bundle.main.url(forResource: "Assets", withExtension: "car") != nil
             report["ok"] = keyRead && report["signing"] as? Bool == true && report["crypto"] as? Bool == true && report["storage"] as? Bool == true && report["importPersistence"] as? Bool == true && services.count == 9
             report["stage"] = "complete"
         } catch {

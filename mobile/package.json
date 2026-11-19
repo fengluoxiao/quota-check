@@ -1,6 +1,6 @@
 {
   "name": "quota-check-mobile",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "private": true,
   "main": "index.ts",
   "packageManager": "pnpm@11.25.0",
