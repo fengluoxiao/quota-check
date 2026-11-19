@@ -107,7 +107,7 @@ func parseProvider(id: String, payload: Any?, sealed: Bool = false) throws -> [P
             let currency = String((text(item["currency"]) ?? "").prefix(12))
             let fields: [(String, String)] = id == "deepseek"
                 ? [("总余额", "total_balance"), ("现金余额", "topped_up_balance"), ("赠金余额", "granted_balance")]
-                : [("账面余额（含冻结）", "total_available"), ("现金余额", "cash_balance"), ("赠金余额", "gift_balance"), ("冻结金额", "frozen_balance"), ("可用授信", "credit_available")]
+                : [("账面余额（含冻结）", "total_available"), ("现金余额", "cash_balance"), ("赠金余额", "gift_balance"), ("冻结金额", "frozen_balance"), ("授信额度", "credit_limit"), ("可用授信", "credit_available")]
             let lines: [String] = fields.compactMap { label, key in
                 guard let value = providerNumber(item[key], negative: true) else { return nil }
                 let formatter = NumberFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -124,6 +124,10 @@ func parseProvider(id: String, payload: Any?, sealed: Bool = false) throws -> [P
         if var row = countWindow(title: "MiMo · 套餐积分", usedRaw: quota["used_credits"], totalRaw: quota["total_credits"], leftRaw: quota["remaining_credits"], unit: "积分") {
             if let period = object(data["period"]), let end = text(period["end_at"]) {
                 row.details += "\n周期结束（UTC）：" + String(end.prefix(100))
+            }
+            if let plan = text(data["plan_code"]) { row.details += "\n套餐档位：" + String(plan.prefix(80)) }
+            for (key, label) in [("auto_renew", "自动续费"), ("claw_enabled", "MiMo Claw")] {
+                if let enabled = ProviderExtras.flag(data[key]) { row.details += "\n" + label + "：" + (enabled ? "已开启" : "未开启") }
             }
             rows.append(row)
         } else {

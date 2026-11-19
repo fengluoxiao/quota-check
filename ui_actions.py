@@ -11,6 +11,7 @@ import newapi
 import quota
 import kimi
 import service_providers
+import provider_extras
 import sub2api
 import vault
 
@@ -335,9 +336,9 @@ class VaultActions:
         self.clear_results();self.set_busy(True);stage="request"
         try:
             payload=await asyncio.to_thread(quota.fetch_quota,key,site);stage="render"
-            self.render(payload,key);self.Updated.Text="更新于 "+datetime.now().strftime("%H:%M:%S")
+            self.render_enriched("glm",quota.quota_cards(payload));self.Updated.Text="更新于 "+datetime.now().strftime("%H:%M:%S")
             sealed=bool(saved.get("sealed") or self.candidate_sealed)
-            self.vault_data["profiles"]["glm"]={"site":site,"key":key,"sealed":sealed}
+            self.vault_data["profiles"]["glm"]={**saved,"site":site,"key":key,"sealed":sealed}
             self.candidate_key="";self.persist();self.restore_fields()
             if quota.quota_cards(payload):self.message("查询成功","已读取当前套餐额度；Key 已在本机加密保存。","Success")
             if sealed:self.publish_raw({})
@@ -385,7 +386,7 @@ class VaultActions:
             cards=payload["cards"]
             if spec["kind"]=="balance":
                 for card in cards:card["kind"]="balance"
-            self.render_cards(cards,payload)
+            self.render_enriched(spec["id"],cards)
             self.Updated.Text="更新于 "+datetime.now().strftime("%H:%M:%S")
             self.vault_data["profiles"][spec["id"]]=copy.deepcopy(record)
             self.persist();self.restore_fields()
@@ -395,12 +396,52 @@ class VaultActions:
         except Exception as exc:self.clear_results();self.message("程序出错","内部异常（"+diagnostics.record("service-query",exc)+"）。","Error")
         finally:self.set_busy(False)
 
+    def render_enriched(self,name,cards,results=None):
+        from win32more.Microsoft.UI.Xaml import UIElement
+        from win32more.Microsoft.UI.Xaml.Controls import Border,Button,StackPanel,Orientation
+        self.extra_provider=name;self.extra_base=copy.deepcopy(cards);self.extra_results=results or {}
+        combined=cards+[card for values in self.extra_results.values() for card in values]
+        self.render_cards(combined,{"cards":combined})
+        actions=provider_extras.ACTIONS.get(name,[])
+        if not actions:return
+        panel=StackPanel();panel.Orientation=Orientation.Horizontal;panel.Spacing=8
+        for action,label in actions:
+            button=Button();button.Name="Extra_"+action;button.Content=label
+            button.Click+=self.ExtraQuery_Click;panel.Children.Append(button)
+        if self.Cards.Children.Size:
+            last=self.Cards.Children.GetAt(self.Cards.Children.Size-1).as_(Border)
+            last.Child.as_(StackPanel).Children.Append(panel.as_(UIElement))
+
+    async def ExtraQuery_Click(self,sender,e):
+        if self.busy:return
+        from win32more.Microsoft.UI.Xaml.Controls import Button,ContentDialog,ContentDialogResult,PasswordBox,PasswordRevealMode
+        action=sender.as_(Button).Name.removeprefix("Extra_")
+        name=self.extra_provider;profile=copy.deepcopy(self.profile(name))
+        if name=="glm" and not profile.get("console_token"):
+            if profile.get("sealed"):
+                self.message("需要控制台凭据","导入的 GLM 连接没有控制台凭据，请由连接所有者补充后重新导出。","Warning");return
+            password=PasswordBox();password.Header="GLM 网页控制台 Authorization（不是套餐 Key）";password.PasswordRevealMode=PasswordRevealMode.Hidden
+            dialog=ContentDialog();dialog.Title="添加 GLM 控制台查询凭据";dialog.Content=password;dialog.PrimaryButtonText="保存并查询";dialog.CloseButtonText="取消";dialog.XamlRoot=self.win.Content.XamlRoot
+            if await dialog.ShowAsync()!=ContentDialogResult.Primary:return
+            try:profile["console_token"]=service_providers.header_secret(password.Password)
+            except quota.QueryError as exc:self.message("凭据无效",str(exc),"Warning");return
+        self.set_busy(True);self.message("正在查询附加信息","只读取当前服务的权益或账单。")
+        try:
+            rows=await asyncio.to_thread(provider_extras.fetch,name,action,profile)
+            self.vault_data["profiles"][name]=profile;self.persist()
+            results={**self.extra_results,action:rows}
+            self.render_enriched(name,self.extra_base,results)
+            self.message("附加查询成功","已读取接口实际返回的数据。","Success")
+        except (quota.QueryError,vault.VaultError) as exc:self.message("附加查询失败",str(exc),"Error")
+        except Exception as exc:self.message("附加查询失败","内部异常（"+diagnostics.record("provider-extra",exc)+"）。","Error")
+        finally:self.set_busy(False)
+
     def collect_owned(self):
         data=copy.deepcopy(self.vault_data)
         if not self.private_view():
             if self.Source.SelectedIndex==0:
                 key=self.Key.Password or self.candidate_key
-                if key:data["profiles"]["glm"]={"site":"global" if self.Site.SelectedIndex==1 else "cn","key":quota.validate_key(key),"sealed":False}
+                if key:data["profiles"]["glm"]={**data["profiles"].get("glm",{}),"site":"global" if self.Site.SelectedIndex==1 else "cn","key":quota.validate_key(key),"sealed":False}
             elif self.Source.SelectedIndex==2:
                 if self.KimiKey.Password:data["profiles"]["kimi"]={"key":quota.validate_key(self.KimiKey.Password),"sealed":False}
             elif self.Source.SelectedIndex in service_providers.BY_SOURCE:

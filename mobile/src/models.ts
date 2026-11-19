@@ -12,6 +12,7 @@ export interface KimiProfile {
   sealed: boolean;
 }
 export interface GlmProfile {
+  console_token?: string;
   site: 'cn' | 'global';
   key: string;
   sealed: boolean;
@@ -128,7 +129,7 @@ export function validateVault(value: unknown): VaultData {
     if (!isRecord(raw)) throw new Error('连接信息格式无效。');
     const allowed: Record<string, string[]> = {
       kimi: ['key', 'sealed'],
-      glm: ['site', 'key', 'sealed'],
+      glm: ['site', 'key', 'sealed', 'console_token'],
       sub2api: [
         'url',
         'email',
@@ -157,6 +158,8 @@ export function validateVault(value: unknown): VaultData {
         key: validateKey(checkedString(raw.key, 'key')),
         sealed: raw.sealed === true,
       };
+      if (raw.console_token !== undefined)
+        out.profiles.glm.console_token = checkedString(raw.console_token, 'console_token');
     } else if (name === 'sub2api') {
       const p: SubProfile = {
         url: normalizeURL(checkedString(raw.url, 'url')),

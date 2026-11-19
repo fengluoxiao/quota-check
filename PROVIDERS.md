@@ -1,6 +1,30 @@
-# 服务接入说明（v1.5.0）
+# 服务接入说明（v2.1.0）
 
 全部查询均为读取操作，不发送模型消息、不刷新或重置套餐、不购买、分配、轮换或导出服务端 Key。没有模拟额度回退。服务源地址固定，拒绝重定向，不能把导入凭据改发至其他地址。
+
+## 卡片附加查询（Windows 与原生 SwiftUI iOS）
+
+主额度查询成功后，在卡片下方按需读取；失败不会清空已经查询成功的额度。结果保留摘要，明细可以展开/收起。
+
+| 服务 | 附加按钮 | 凭据和范围 |
+| --- | --- | --- |
+| GLM 国内 Coding Plan | 重置卡、加油包 | 另需网页控制台请求头中的完整 Authorization；套餐 Key 不替代网页会话。Windows 首次点击时添加，iOS 在设置中填写可选控制台字段，成功后加密保存。分别展示 5 小时/周重置卡次数与到期、加油包总额/剩余/最近到期。Z.ai 暂不使用国内接口。 |
+| Claude Code | 重置次数、额外消费 | 复用 OAuth。重置使用可选 `cedar_ember=1`，只解析资格、次数、暂停和生效/到期时间；不保存 grant ID、兑换句柄。缺少该权益时提示不可确认，而非补零。消费上限和已消费保留接口计费单位，不称为钱包余额。 |
+| MiMo API 余额 | 近7天用量、近7天账单 | 复用普通 API Key（不是 Token Plan Key）；日期参数取北京时间今天及前6天。只投影日期、模型/插件名称、请求次数、消费、折扣、赠金抵扣和实付；不展示响应中的 API Key 字段。 |
+| 方舟个人 Agent Plan | 订阅到期 | 复用 AK/SK/STS，增加 `ListSubscribeTrade` 查询权限，限定 `RealAgentPlanPersonal`，逐条展示接口返回的 EndTime；不把额度窗口刷新时间当成订阅到期。 |
+
+MiMo 套餐同时补充 `plan_code`、`auto_renew`、`claw_enabled`，普通余额补充 `credit_limit`，仅在实际返回时展示。其他未查到可靠权益接口的服务保持已有周期/余额查询。
+
+GLM 控制台凭据以 `console_token` 可选字段保存在 GLM 连接内，导入后同样不可见、不可再次导出。旧文件无需此字段即可继续查询主额度。含此新字段的文件应在 v2.1.0 及以上版本间传递。Expo 客户端仅保留文件字段兼容；新增附加按钮以 Windows 和独立 SwiftUI 客户端为准。
+
+本版不接方舟按模型时序明细：官方 CLI 说明了 GetUsageDetails，但本次未核实完整请求字段契约；不猜测请求体或把通用 API 用量伪装为套餐明细。
+
+核实日期：2026-11-19。GLM 控制台接口与 Claude 可选权益不是公开稳定契约，可能因账号资格、权限或厂商升级返回不可用。未用用户真实凭据查询验证。
+
+- GLM：[重置卡规则](https://docs.bigmodel.cn/cn/coding-plan/faq)，官网个人用量页面当前前端的 `GET /api/biz/customer-package-reset/list?targetType=PERSONAL`、`GET /api/biz/boosterPack/usage/remaining`。
+- Claude：[OAuth 附加权益读取实现（第三方 CodexBar）](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Claude/ClaudeOAuth/ClaudeOAuthUsageFetcher.swift)、[重置权益字段](https://github.com/steipete/CodexBar/blob/main/Sources/CodexBarCore/Providers/Claude/ClaudeRateLimitResetCredits.swift)。
+- MiMo：[官方日用量](https://mimo.mi.com/docs/zh-CN/api/asset/consumption-get)、[官方日账单](https://mimo.mi.com/docs/zh-CN/api/asset/daily-bill-get)。
+- 方舟：[官方 CLI 订阅读取与到期字段](https://github.com/volcengine/ark-cli/blob/main/skills/arkcli-plans/references/arkcli-plans-get.md)。
 
 | 服务 | 填写的凭据 | 展示的数据 | 范围 |
 | --- | --- | --- | --- |

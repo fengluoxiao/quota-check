@@ -133,6 +133,7 @@ struct PanelUser {
 
 struct Profile {
     var kind: String
+    var consoleToken: String?
     var site: String?
     var key: String?
     var url: String?
@@ -163,6 +164,7 @@ struct VaultData {
             case "glm":
                 value["site"] = profile.site ?? "cn"
                 value["key"] = profile.key ?? ""
+                if let token = profile.consoleToken { value["console_token"] = token }
             case "newapi":
                 value["url"] = profile.url ?? ""
                 value["username"] = profile.username ?? ""

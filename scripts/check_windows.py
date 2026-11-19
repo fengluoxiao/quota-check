@@ -14,10 +14,13 @@ fixture_storage=tempfile.TemporaryDirectory(prefix='quota-native-ui-')
 fixture_dir=Path(fixture_storage.name)
 for case in cases:
     source=fixture_dir/(case['id']+'.json');target=out/('ui-'+case['id']+'.json')
-    source.write_text(json.dumps({'_provider':case['id'],'quota':case['payload'],'_vault_check':True,'file_password':'ci-native-file-test-password','expected_cards':len(case['expect'])}),encoding='utf-8')
+    extras=json.loads((root/'tests/fixtures/extras-usage.json').read_text(encoding='utf-8'))
+    extra_cases=[item for item in extras if item['provider']==case['id']]
+    source.write_text(json.dumps({'_provider':case['id'],'quota':case['payload'],'_provider_extras':extra_cases,'_vault_check':True,'file_password':'ci-native-file-test-password','expected_cards':len(case['expect'])}),encoding='utf-8')
     launch(['--check-ui',source,target])
     result=json.loads(target.read_text(encoding='utf-8'))
     assert all(result.get(k) for k in ('ok','frozen','service_controls','file_handlers_verified','credential_fields_empty','import_read_only','reexport_blocked','raw_hidden')),case['id']
+    if extra_cases:assert result.get('extra_buttons'),case['id']
     reports.append({'provider':case['id'],'ok':True})
     print('Packaged native UI and encrypted file checks passed:',case['id'],flush=True)
 guide=out/'README-Windows.txt'

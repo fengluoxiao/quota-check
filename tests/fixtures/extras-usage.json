@@ -1,0 +1,9 @@
+[
+  {"provider":"glm","action":"reset","payload":{"code":200,"success":true,"data":{"fiveHourResets":[{"available":true,"expireTime":"2099-12-01T00:00:00Z","recordId":"never-export-handle"},{"available":false,"expireTime":"2020-01-01T00:00:00Z"}],"weekResets":[]}},"count":2,"value":"1 次可用","expanded":1},
+  {"provider":"glm","action":"boost","payload":{"code":200,"success":true,"data":{"totalMagnitude":100,"totalBalance":0,"nearestExpireTime":"2099-12-01T00:00:00Z"}},"count":1,"value":"剩余 0","expanded":0},
+  {"provider":"claude","action":"reset","payload":{"cedar_ember":{"eligible":true,"grants":[{"resets_left":2,"resets_total":2,"paused":false,"ends_at":"2099-12-01T00:00:00Z","id":"never-export-handle","usable_now":false},{"resets_left":3,"paused":true},{"resets_left":1,"paused":false,"ends_at":"2020-01-01T00:00:00Z"},{"resets_left":1,"paused":false,"starts_at":"2099-12-01T00:00:00Z"}]}},"count":1,"value":"2 次可用","expanded":2},
+  {"provider":"claude","action":"spend","payload":{"extra_usage":{"is_enabled":true,"monthly_limit":1000,"used_credits":300,"utilization":30}},"count":1,"value":"已开启","expanded":0},
+  {"provider":"mimo_balance","action":"daily","payload":{"object":"list","data":[{"date":"2026-11-19","name":"mimo-model","masked_api_key":"never-export-handle","currency":"CNY","consumed_amount":"0.000500","request_count":1}]},"count":1,"value":"1 条记录","expanded":1},
+  {"provider":"mimo_balance","action":"bill","payload":{"object":"list","data":[{"date":"2026-11-19","currency":"CNY","original_amount":"6.00","discount_amount":"1.50","gift_amount":"1.00","final_paid_amount":"3.50"}]},"count":1,"value":"1 条记录","expanded":1},
+  {"provider":"ark_agent","action":"subscription","payload":{"Result":{"InfoList":[{"EndTime":"4102444800","APIKey":"never-export-handle"}]}},"count":1,"value":"订阅到期：","expanded":0}
+]

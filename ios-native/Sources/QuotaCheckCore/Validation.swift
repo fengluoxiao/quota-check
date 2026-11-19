@@ -89,7 +89,7 @@ func validateVault(_ value: Any?) throws -> VaultData {
         guard let item = object(raw) else { throw QuotaError("连接信息格式无效。") }
         let allowed: [String: Set<String>] = [
             "kimi": ["key", "sealed"],
-            "glm": ["site", "key", "sealed"],
+            "glm": ["site", "key", "sealed", "console_token"],
             "newapi": ["url", "username", "password", "sealed"],
             "sub2api": ["url", "email", "password", "access_token", "refresh_token", "user", "sealed", "cached"],
         ]
@@ -107,6 +107,7 @@ func validateVault(_ value: Any?) throws -> VaultData {
             }
             profile.site = site
             profile.key = try validateKey(try checkedString(item["key"], field: "key"))
+            if let token = item["console_token"] { profile.consoleToken = try headerSecret(token) }
         } else if name == "newapi" {
             profile.url = try normalizeURL(try checkedString(item["url"], field: "url"))
             profile.username = try checkedString(item["username"], field: "username")

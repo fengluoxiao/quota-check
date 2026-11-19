@@ -6,7 +6,7 @@ mkdir -p "$out/Payload/QuotaCheck.app"
 mode="${IOS_BUILD_MODE:-simulator}"
 build_number="${IOS_BUILD_NUMBER:-1}"
 bundle_id="${IOS_BUNDLE_IDENTIFIER:-com.fengluoxiao.quotacheck.native}"
-version="${IOS_APP_VERSION:-2.0.0}"
+version="${IOS_APP_VERSION:-2.1.0}"
 
 if [[ "$mode" == "simulator" ]]; then
   sdk="$(xcrun --sdk iphonesimulator --show-sdk-path)"
@@ -72,7 +72,7 @@ printf 'APPL????' > "$app/PkgInfo"
 
 if [[ "$mode" == "simulator" ]]; then
   codesign --force --sign - "$app"
-  zip -qry -1 "$out/QuotaCheck-ios-simulator-arm64.app.zip" "$app"
+  (cd "$(dirname "$app")" && zip -qry -1 "$out/QuotaCheck-ios-simulator-arm64.app.zip" "$(basename "$app")")
 else
   ipa_root="$out/ipa"
   rm -rf "$ipa_root"
@@ -81,3 +81,5 @@ else
   ditto -c -k --sequesterRsrc --keepParent "$ipa_root/Payload" "$out/QuotaCheck-ios-unsigned.ipa"
   rm -rf "$ipa_root"
 fi
+
+(cd "$out"; shopt -s nullglob; packages=(*.ipa *.zip); shasum -a 256 "${packages[@]}" > SHA256SUMS.txt)

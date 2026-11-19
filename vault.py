@@ -35,7 +35,7 @@ def validate(data):
             except quota.QueryError:raise VaultError("服务连接凭据无效。") from None
             continue
         if name not in ("glm","sub2api","newapi","kimi") or not isinstance(record,dict):raise VaultError("连接文件包含不支持的连接类型。")
-        allowed={"kimi":{"key","sealed"},"glm":{"site","key","sealed"},
+        allowed={"kimi":{"key","sealed"},"glm":{"site","key","sealed","console_token"},
                  "sub2api":{"url","email","password","access_token","refresh_token","user","sealed","cached"},
                  "newapi":{"url","username","password","sealed"}}[name]
         if set(record)-allowed:raise VaultError("连接文件包含不支持的字段。")

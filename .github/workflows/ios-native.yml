@@ -59,15 +59,62 @@ jobs:
             ios-native/build/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
-      - name: Publish native iOS preview
-        if: github.event_name == 'workflow_dispatch' && inputs.release
+
+  windows:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Install desktop dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Install required Windows App Runtime
+        run: ./scripts/install_windows_runtime.ps1
+      - name: Test desktop protocols and encrypted files
+        run: python -m unittest discover -s tests -v
+      - name: Build Windows x64 EXE
+        run: |
+          New-Item -ItemType Directory -Force -Path build/windows | Out-Null
+          python -m PyInstaller --noconfirm --clean --distpath build/windows/dist --workpath build/windows/work GLMQuota.spec *> build/windows/pyinstaller.log
+          if ($LASTEXITCODE -ne 0) { Get-Content build/windows/pyinstaller.log -Tail 60; exit $LASTEXITCODE }
+      - name: Verify packaged native UI and credential protection for every service
+        run: |
+          $quotaExe = @(Get-ChildItem -LiteralPath build/windows/dist -Filter '*.exe')
+          if ($quotaExe.Count -ne 1) { throw 'Expected one desktop executable' }
+          python scripts/check_windows.py $quotaExe[0].FullName build/windows/dist
+      - name: Upload Windows package and native reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: quota-check-windows-${{ github.run_number }}
+          path: build/windows/dist/*
+          if-no-files-found: warn
+          retention-days: 14
+
+  publish:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}
+    needs: [ios, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: quota-check-ios-native-${{ github.run_number }}
+          path: build/release/ios
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: quota-check-windows-${{ github.run_number }}
+          path: build/release/windows
+      - name: Publish verified native iOS and Windows packages
         env:
           GH_TOKEN: ${{ github.token }}
-        working-directory: ios-native/build
-        run: |
-          tag='v2.0.0-ios-native'
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$tag" --repo "$GITHUB_REPOSITORY" --clobber QuotaCheck-ios-unsigned.ipa QuotaCheck-ios-simulator-arm64.app.zip ios-simulator.png native-health.json SHA256SUMS.txt
-          else
-            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false --title 'v2.0.0 iOS Native Preview — SwiftUI' --notes '纯 Swift / SwiftUI iOS 客户端预览。复用 Argon2 + AES-GCM 加密文件互通和 Keychain；不再包含 React Native / WebView 运行时。IPA 未签名，安装真机前需要 Apple 签名。' QuotaCheck-ios-unsigned.ipa QuotaCheck-ios-simulator-arm64.app.zip ios-simulator.png native-health.json SHA256SUMS.txt
-          fi
+        run: python3 scripts/publish_native_release.py build/release

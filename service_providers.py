@@ -31,15 +31,16 @@ def validate_profile(name,record):
         if value or f['required']:out[f['key']]=value
     return out
 
-def sign_volc(ak,sk,session_token='',*,timestamp=None):
+def sign_volc(ak,sk,session_token='',*,timestamp=None,action='GetAFPUsage',body='{}'):
     ak=header_secret(ak);sk=header_secret(sk);session_token=header_secret(session_token,False)
     stamp=timestamp or datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     if not re.fullmatch(r'[0-9]{8}T[0-9]{6}Z',stamp):raise quota.QueryError('签名时间格式无效。')
-    host='ark.cn-beijing.volcengineapi.com';body='{}'
+    if action not in ('GetAFPUsage','ListSubscribeTrade'):raise quota.QueryError('不支持的只读查询。')
+    host='ark.cn-beijing.volcengineapi.com'
     headers={'Content-Type':'application/json','Host':host,'X-Date':stamp,'X-Content-Sha256':hashlib.sha256(body.encode()).hexdigest()}
     if session_token:headers['X-Security-Token']=session_token
     lower={k.lower():v for k,v in headers.items()};names=';'.join(sorted(lower))
-    canonical='\n'.join(['POST','/','Action=GetAFPUsage&Version=2024-01-01',''.join(k+':'+lower[k]+'\n' for k in sorted(lower)),names,headers['X-Content-Sha256']])
+    canonical='\n'.join(['POST','/','Action='+action+'&Version=2024-01-01',''.join(k+':'+lower[k]+'\n' for k in sorted(lower)),names,headers['X-Content-Sha256']])
     scope=stamp[:8]+'/cn-beijing/ark/request'
     message='\n'.join(['HMAC-SHA256',stamp,scope,hashlib.sha256(canonical.encode()).hexdigest()])
     key=sk.encode()
@@ -128,7 +129,7 @@ def parse_usage(name,payload,*,sealed=False):
             if not isinstance(data,dict):raise quota.QueryError('余额明细格式异常。')
             currency=data.get('currency','')
             if currency not in ('CNY','USD','EUR','HKD'):currency=str(currency)[:12]
-            fields=[('总余额','total_balance'),('现金余额','topped_up_balance'),('赠金余额','granted_balance')] if name=='deepseek' else [('账面余额（含冻结）','total_available'),('现金余额','cash_balance'),('赠金余额','gift_balance'),('冻结金额','frozen_balance'),('可用授信','credit_available')]
+            fields=[('总余额','total_balance'),('现金余额','topped_up_balance'),('赠金余额','granted_balance')] if name=='deepseek' else [('账面余额（含冻结）','total_available'),('现金余额','cash_balance'),('赠金余额','gift_balance'),('冻结金额','frozen_balance'),('授信额度','credit_limit'),('可用授信','credit_available')]
             parts=[]
             for label,key in fields:
                 number=amount(data.get(key),negative=True)
@@ -139,6 +140,11 @@ def parse_usage(name,payload,*,sealed=False):
         if not isinstance(data,dict):raise quota.QueryError('MiMo 未返回套餐积分，请检查是否为 Token Plan Key。')
         rows.append(count_window('MiMo · 套餐积分',data.get('used_credits'),data.get('total_credits'),data.get('remaining_credits'),None,'积分'))
         if rows[-1] and isinstance(period,dict) and period.get('end_at'):rows[-1]['details']+='\n周期结束（UTC）：'+str(period['end_at'])[:100]
+        if rows[-1]:
+            for key,label in [('plan_code','套餐档位'),('auto_renew','自动续费'),('claw_enabled','MiMo Claw')]:
+                value=payload.get(key)
+                if isinstance(value,bool):rows[-1]['details']+='\n'+label+'：'+('已开启' if value else '未开启')
+                elif key=='plan_code' and isinstance(value,str):rows[-1]['details']+='\n'+label+'：'+value[:80]
     elif name=='ark_agent':
         data=payload.get('Result')
         if not isinstance(data,dict):raise quota.QueryError('当前身份没有可用的个人版 Agent Plan 数据。')

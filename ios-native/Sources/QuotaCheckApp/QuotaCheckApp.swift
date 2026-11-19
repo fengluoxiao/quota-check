@@ -156,6 +156,8 @@ struct RootView: View {
             Section("GLM 连接") {
                 Picker("站点", selection: Binding(get: { model.form.site }, set: { selected in model.updateForm { $0.site = selected } })) { Text("智谱 BigModel").tag("cn"); Text("Z.ai Global").tag("global") }
                 SecureField("Coding Plan API Key", text: Binding(get: { model.form.key }, set: { newValue in model.updateForm { $0.key = newValue } }))
+                SecureField("网页控制台 Authorization（查询重置卡/加油包，可选）", text: $model.form.consoleToken)
+                Text("国内站点使用网页控制台凭据读取重置卡与加油包；与套餐 Key 分开加密保存。已保存的凭据不回填。").font(.footnote).foregroundStyle(muted)
             }
         } else if model.vault.source == 1 {
             Section("sub2api 管理员") {
@@ -244,7 +246,7 @@ struct AccountCardView: View {
             Text(card.subtitle).font(.caption).foregroundStyle(colors.muted)
             if let error = card.error { Text(error).font(.footnote).foregroundStyle(.red).padding(12).frame(maxWidth: .infinity, alignment: .leading).background(colors.inner).clipShape(RoundedRectangle(cornerRadius: 10)) }
             ForEach(Array(card.windows.enumerated()), id: \.offset) { _, window in WindowView(window: window, colors: colors) }
-            ForEach(Array(["reset", "credits"].filter { card.queries[$0] != nil }.enumerated()), id: \.offset) { _, key in
+            ForEach(Array(["reset", "credits", "boost", "spend", "daily", "bill", "subscription"].filter { card.queries[$0] != nil }.enumerated()), id: \.offset) { _, key in
                 ForEach(Array((card.queries[key] ?? []).enumerated()), id: \.offset) { index, query in
                     QueryCardView(title: query.title, detail: query.detail, colors: colors)
                     if let lines = query.expandedLines, !lines.isEmpty {
@@ -259,13 +261,20 @@ struct AccountCardView: View {
                     }
                 }
             }
-            if card.actions.contains("reset") {
+            if model.vault.source == 1, card.actions.contains("reset") {
                 HStack(spacing: 8) {
                     actionButton("重置卡", action: "reset", card: card)
                     actionButton("点数", action: "credits", card: card)
                     actionButton("刷新快照", action: "refresh", card: card, accent: true)
                 }
                 Text("只读取或刷新快照 · 不消耗重置卡").font(.caption2).foregroundStyle(colors.tertiary)
+            } else if !card.actions.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(card.actions, id: \.self) { action in
+                        actionButton(ProviderExtras.actions(model.activeProfile()?.kind ?? "").first(where: { $0.0 == action })?.1 ?? action, action: action, card: card)
+                    }
+                }
+                Text("只读查询 · 不使用重置卡或购买权益").font(.caption2).foregroundStyle(colors.tertiary)
             }
         }
         .padding(18).frame(maxWidth: .infinity, alignment: .leading)

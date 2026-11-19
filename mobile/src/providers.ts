@@ -134,6 +134,7 @@ export function parseProvider(id: ServiceId, payload: unknown, sealed = false): 
               ['现金余额', 'cash_balance'],
               ['赠金余额', 'gift_balance'],
               ['冻结金额', 'frozen_balance'],
+              ['授信额度', 'credit_limit'],
               ['可用授信', 'credit_available'],
             ];
       const lines: string[] = [];
@@ -170,6 +171,9 @@ export function parseProvider(id: ServiceId, payload: unknown, sealed = false): 
     );
     if (row && isRecord(payload.period) && payload.period.end_at)
       row.details += '\n周期结束（UTC）：' + String(payload.period.end_at).slice(0, 100);
+    if (row && typeof payload.plan_code === 'string') row.details += '\n套餐档位：' + payload.plan_code.slice(0, 80);
+    for (const [key, label] of [['auto_renew', '自动续费'], ['claw_enabled', 'MiMo Claw']] as const)
+      if (row && typeof payload[key] === 'boolean') row.details += '\n' + label + '：' + (payload[key] ? '已开启' : '未开启');
     rows.push(row);
   } else if (id === 'ark_agent') {
     if (!isRecord(payload.Result)) throw new Error('当前身份没有可用的个人版 Agent Plan 数据。');

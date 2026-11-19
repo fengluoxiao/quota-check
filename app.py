@@ -338,11 +338,15 @@ def launch(*, test_hook=None):
                 title = escape(card["title"], quote=True)
                 details = escape(card["details"], quote=True).replace("\n", "&#10;")
                 if used is None:
-                    percentage = "账户余额" if card.get("kind")=="balance" else "接口未提供有效的使用比例"
+                    percentage = card.get("value") or ("账户余额" if card.get("kind")=="balance" else "接口未提供有效的使用比例")
                     bar = ""
                 else:
                     percentage = f"剩余 {card['remaining']:.1f}% · 已用 {used:.1f}%"
                     bar = f'<ProgressBar Minimum="0" Maximum="100" Value="{min(100, used)}" Height="6" />'
+                expanded = ""
+                if card.get("expanded_details"):
+                    rows = ''.join('<TextBlock Text="'+escape(line,quote=True)+'" TextWrapping="Wrap" FontSize="12"/>' for line in card['expanded_details'])
+                    expanded = f'<Expander Header="查看 {len(card["expanded_details"])} 条明细" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"><StackPanel Spacing="8">{rows}</StackPanel></Expander>'
                 card_xaml = f'''<Border xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     Padding="20" CornerRadius="12" Background="{{ThemeResource CardBackgroundFillColorDefaultBrush}}"
                     BorderBrush="{{ThemeResource CardStrokeColorDefaultBrush}}" BorderThickness="1">
@@ -351,6 +355,7 @@ def launch(*, test_hook=None):
                     <TextBlock Text="{percentage}" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" />
                     {bar}
                     <TextBlock Text="{details}" FontSize="12" Foreground="{{ThemeResource TextFillColorSecondaryBrush}}" TextWrapping="Wrap" />
+                    {expanded}
                     </StackPanel></Border>'''
                 from win32more.Microsoft.UI.Xaml import UIElement
                 self.Cards.Children.Append(XamlReader.Load(card_xaml).as_(UIElement))
@@ -385,6 +390,25 @@ def check_ui(input_path, output_path):
                 passed=view.Notice.Title=="查询成功"
                 report["service_controls"]=bool(view.ServicePanel.Visibility==0 and view.GlmPanel.Visibility!=0 and view.KimiPanel.Visibility!=0)
                 passed=passed and report["service_controls"]
+                if payload.get("_provider_extras"):
+                    import provider_extras
+                    from win32more.Microsoft.UI.Xaml.Automation.Peers import ButtonAutomationPeer
+                    from win32more.Microsoft.UI.Xaml.Controls import Border as ProbeBorder,Button as ProbeButtonClass,Panel as ProbePanel
+                    previous_extra=provider_extras.fetch
+                    try:
+                        cases=payload["_provider_extras"]
+                        provider_extras.fetch=lambda name,action,record:provider_extras.parse(name,action,next(c['payload'] for c in cases if c['provider']==name and c['action']==action))
+                        for action,_ in provider_extras.ACTIONS.get(spec['id'],[]):
+                            last=view.Cards.Children.GetAt(view.Cards.Children.Size-1).as_(ProbeBorder).Child.as_(ProbePanel)
+                            buttons=last.Children.GetAt(last.Children.Size-1).as_(ProbePanel)
+                            button=next(b.as_(ProbeButtonClass) for b in buttons.Children if b.as_(ProbeButtonClass).Name=='Extra_'+action)
+                            ButtonAutomationPeer(button).Invoke()
+                            for _ in range(80):
+                                await asyncio.sleep(0.1)
+                                if view.extra_results.get(action):break
+                            assert view.extra_results.get(action) and view.Notice.Title=='附加查询成功'
+                        report['extra_buttons']=True
+                    finally:provider_extras.fetch=previous_extra
             elif payload.get("_provider") == "kimi":
                 view.Source.SelectedIndex = 2
                 view.KimiKey.Password = "diagnostic-only-kimi"

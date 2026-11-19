@@ -14,7 +14,8 @@ func hexBytes(_ value: String) throws -> String {
     value.utf8.map { String(format: "%02x", $0) }.joined()
 }
 
-func signVolc(profile: Profile, hash: HashFunctions, stamp: String) throws -> [String: String] {
+func signVolc(profile: Profile, hash: HashFunctions, stamp: String, action: String = "GetAFPUsage", body: String = "{}") throws -> [String: String] {
+    guard ["GetAFPUsage", "ListSubscribeTrade"].contains(action) else { throw QuotaError("不支持的只读查询。") }
     guard stamp.range(of: #"^\d{8}T\d{6}Z$"#, options: .regularExpression) != nil else {
         throw QuotaError("签名时间格式无效。")
     }
@@ -22,13 +23,13 @@ func signVolc(profile: Profile, hash: HashFunctions, stamp: String) throws -> [S
         "Content-Type": "application/json",
         "Host": "ark.cn-beijing.volcengineapi.com",
         "X-Date": stamp,
-        "X-Content-Sha256": try hash.sha256("{}"),
+        "X-Content-Sha256": try hash.sha256(body),
     ]
     if let token = profile.sessionToken { headers["X-Security-Token"] = token }
     let lower = Dictionary(uniqueKeysWithValues: headers.map { ($0.key.lowercased(), $0.value) })
     let keys = lower.keys.sorted()
     let names = keys.joined(separator: ";")
-    let canonical = ["POST", "/", "Action=GetAFPUsage&Version=2024-01-01",
+    let canonical = ["POST", "/", "Action=\(action)&Version=2024-01-01",
                      keys.map { "\($0):\(lower[$0] ?? "")\n" }.joined(),
                      names, headers["X-Content-Sha256"] ?? ""].joined(separator: "\n")
     let scope = String(stamp.prefix(8)) + "/cn-beijing/ark/request"

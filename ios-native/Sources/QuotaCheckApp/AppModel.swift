@@ -4,6 +4,7 @@ import Combine
 import UniformTypeIdentifiers
 
 struct ConnectionForm {
+    var consoleToken = ""
     var site = "cn"
     var key = ""
     var url = ""
@@ -106,12 +107,18 @@ final class AppModel: ObservableObject {
     }
 
     private func preparedProfile() throws -> Profile {
-        if let existing = activeProfile(), existing.sealed { return existing }
+        if var existing = activeProfile() {
+            if !existing.sealed, existing.kind == "glm", !form.consoleToken.isEmpty {
+                existing.consoleToken = try headerSecret(form.consoleToken)
+            }
+            return existing
+        }
         switch vault.source {
         case 0:
             var profile = Profile(kind: "glm")
             profile.site = form.site == "global" ? "global" : "cn"
             profile.key = form.key
+            if !form.consoleToken.isEmpty { profile.consoleToken = try headerSecret(form.consoleToken) }
             return profile
         case 1:
             var profile = Profile(kind: "sub2api")
@@ -146,7 +153,7 @@ final class AppModel: ObservableObject {
         busy = true; notice = "正在查询……"; cards = []
         do {
             let profile = try preparedProfile()
-            let result: [AccountCard]
+            var result: [AccountCard]
             if vault.source == 0 { result = try await glmCards(profile: profile, transport: nativeTransport) }
             else if vault.source == 2 { result = try await queryKimi(profile: profile, transport: nativeTransport) }
             else if vault.source == 1 {
@@ -163,6 +170,10 @@ final class AppModel: ObservableObject {
                 result = try await queryService(id: spec.id, profile: profile, transport: nativeTransport)
                 var saved = profile; saved.sealed = profile.sealed
                 updateStoredProfile(saved)
+            }
+            if vault.source != 1 {
+                updateStoredProfile(profile)
+                if !result.isEmpty { result[0].actions = ProviderExtras.actions(profile.kind).map { $0.0 } }
             }
             cards = result
             needsOTP = false
@@ -183,6 +194,7 @@ final class AppModel: ObservableObject {
     }
 
     func subAction(_ action: String, card: AccountCard) async {
+        if vault.source != 1 { await extraAction(action, card: card); return }
         guard !busy, busyCard == nil, vault.source == 1 else { return }
         busyCard = card.id; busy = true
         notice = action == "refresh" ? "正在刷新该账号额度并保存快照……" : "正在读取该账号的\(action == "reset" ? "重置卡次数" : "点数余额")……"
@@ -205,6 +217,23 @@ final class AppModel: ObservableObject {
             notice = (error as? LocalizedError)?.errorDescription ?? "卡片查询失败。"
         }
         busy = false; busyCard = nil
+    }
+
+    private func extraAction(_ action: String, card: AccountCard) async {
+        guard !busy, busyCard == nil else { return }
+        busy = true; busyCard = card.id
+        defer { busy = false; busyCard = nil }
+        do {
+            let profile = try preparedProfile()
+            if profile.kind == "glm", profile.consoleToken == nil { settingsOpen = true }
+            let rows = try await ProviderExtras.fetch(profile.kind, action, profile)
+            var next = card; next.queries[action] = rows
+            replaceCard(next); updateStoredProfile(profile)
+            form.consoleToken = ""
+            notice = "附加查询成功 · 已读取接口实际返回的数据。"
+        } catch {
+            notice = (error as? LocalizedError)?.errorDescription ?? "附加查询失败。"
+        }
     }
 
     private func ensureSubClient() async throws -> SubClient {
